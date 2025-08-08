@@ -1,0 +1,110 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script>```html
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Boek Toevoegen</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: {{ '#1e1e1e' if settings.dark_mode else '#ffffff' }};
+            color: {{ '#ffffff' if settings.dark_mode else settings.color }};
+        }
+        .tab-button {
+            background-color: {{ '#2e2e2e' if settings.dark_mode else '#f5f5f5' }};
+            color: {{ settings.color }};
+            border: 2px solid {{ settings.color }};
+            border-bottom: none;
+            border-radius: 10px 10px 0 0;
+            padding: 10px 20px;
+            margin-right: 2px;
+        }
+        .tab-button.active {
+            background-color: {{ settings.color }};
+            color: {{ '#ffffff' if settings.dark_mode else '#ffffff' }};
+        }
+        .tab-button:hover:not(.active) {
+            background-color: {{ '#3e3e3e' if settings.dark_mode else '#e0e0e0' }};
+        }
+    </style>
+</head>
+<body class="p-4">
+    <div class="container mx-auto">
+        <h1 class="text-3xl font-bold mb-4 text-center" style="color: {{ settings.color }};">Boeken Applicatie</h1>
+        <div class="flex mb-4">
+            <a href="{{ url_for('index') }}" class="tab-button">Boeken Zoeken</a>
+            <a href="{{ url_for('statistics') }}" class="tab-button">Grafieken</a>
+            <a href="{{ url_for('settings') }}" class="tab-button">Instellingen</a>
+        </div>
+        <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
+            <h2 class="text-2xl font-bold mb-4" style="color: {{ settings.color }};">Boek Toevoegen</h2>
+            <form method="POST" action="{{ url_for('add_book') if not book_data else url_for('add_book') }}" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {% for col in ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'prijs', 'paginas', 'bindwijze', 'edition', 'isbn', 'reeks_nr', 'uitgeverij', 'serie', 'staat', 'taal', 'gesigneerd', 'gelezen'] %}
+                <div>
+                    <label class="block text-sm font-medium" style="color: {{ settings.color }};">{{ col.replace('_', ' ').title() }}</label>
+                    <input type="text" name="{{ col }}" value="{{ book_data.get(col, '') if book_data else '' }}" class="w-full p-2 border rounded" placeholder="{{ col.replace('_', ' ').title() }}">
+                </div>
+                {% endfor %}
+                <div class="col-span-3">
+                    <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded" style="background-color: {{ settings.color }};">Toevoegen</button>
+                    <button type="submit" formaction="{{ url_for('fetch_book') }}" class="bg-green-500 text-white px-4 py-2 rounded" style="background-color: {{ settings.color }};">Zoek via Google Books</button>
+                    <a href="{{ url_for('index') }}" class="bg-gray-500 text-white px-4 py-2 rounded">Terug</a>
+                </div>
+            </form>
+            {% if book_data and book_data.cover_url %}
+            <div class="mt-4">
+                <img src="{{ book_data.cover_url }}" alt="Boekomslag" class="max-w-xs">
+            </div>
+            {% endif %}
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="mt-4 p-2 rounded {{ 'bg-red-100 text-red-700' if category == 'error' else 'bg-green-100 text-green-700' }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+    </div>
+</body>
+</html>
+```
