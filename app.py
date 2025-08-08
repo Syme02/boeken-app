@@ -56,7 +56,7 @@ def load_csv_to_db(csv_source, overwrite=False):
         # Als csv_source een bestandspad is (voor initiële import)
         if isinstance(csv_source, str):
             if not os.path.exists(csv_source):
-                return False, f"Fout: CSV-bestand niet gevonden op {csv_source}"
+                #return False, f"Fout: CSV-bestand niet gevonden op {csv_source}"
             # Probeer meerdere encodings
             encodings = ['utf-8-sig', 'iso-8859-1', 'windows-1252']
             df = None
