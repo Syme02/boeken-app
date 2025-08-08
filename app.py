@@ -54,23 +54,7 @@ def init_db():
 def load_csv_to_db(csv_source, overwrite=False):
     try:
         # Als csv_source een bestandspad is (voor initiële import)
-        if isinstance(csv_source, str):
-            if not os.path.exists(csv_source):
-                return False, f"Fout: CSV-bestand niet gevonden op {csv_source}"
-            # Probeer meerdere encodings
-            encodings = ['utf-8-sig', 'iso-8859-1', 'windows-1252']
-            df = None
-            for encoding in encodings:
-                try:
-                    df = pd.read_csv(csv_source, sep=None, engine="python", encoding=encoding)
-                    print(f"Succes: CSV gelezen met encoding {encoding}")
-                    break
-                except UnicodeDecodeError:
-                    print(f"Mislukt: Encoding {encoding} faalde")
-                    continue
-            if df is None:
-                raise ValueError("Geen geschikte encoding gevonden voor het CSV-bestand")
-        else:
+        if:
             # Als csv_source een geüpload bestand is
             encodings = ['utf-8-sig', 'iso-8859-1', 'windows-1252']
             df = None
@@ -202,6 +186,22 @@ def load_csv_to_db(csv_source, overwrite=False):
                 print("Geen nieuwe boeken om toe te voegen")
                 conn.close()
                 return True, "Geen nieuwe boeken om toe te voegen"
+        else isinstance(csv_source, str):
+            if not os.path.exists(csv_source):
+                return False, f"Fout: CSV-bestand niet gevonden op {csv_source}"
+            # Probeer meerdere encodings
+            encodings = ['utf-8-sig', 'iso-8859-1', 'windows-1252']
+            df = None
+            for encoding in encodings:
+                try:
+                    df = pd.read_csv(csv_source, sep=None, engine="python", encoding=encoding)
+                    print(f"Succes: CSV gelezen met encoding {encoding}")
+                    break
+                except UnicodeDecodeError:
+                    print(f"Mislukt: Encoding {encoding} faalde")
+                    continue
+            if df is None:
+                raise ValueError("Geen geschikte encoding gevonden voor het CSV-bestand")
     except Exception as e:
         print(f"Fout bij importeren CSV: {str(e)}")
         return False, f"Fout bij importeren CSV: {str(e)}"
