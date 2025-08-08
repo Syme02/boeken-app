@@ -1,4 +1,5 @@
 Flask==2.3.2
-pandas==1.5.3  # Oudere, stabiele versie
+pandas==1.5.3  # Oudere versie voor stabiliteit
 numpy==1.23.5  # Compatibel met pandas 1.5.3
 waitress==2.1.2
+setuptools==65.5.1  # Stabiele versie voor Python 3.11
