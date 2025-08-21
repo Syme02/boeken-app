@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Instellingen - Boeken Applicatie</title>
+  <title>Instellingen | Boeken Applicatie</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
   <style>
     :root {
@@ -15,6 +15,7 @@
       --border-color: {{ '#374151' if settings.dark_mode else '#e5e7eb' }};
       --focus-ring: {{ settings.color }};
     }
+    html, body { height: 100%; }
     body { background-color: var(--background-color); color: var(--text-color); }
     .card { background-color: var(--card-bg); border: 1px solid var(--border-color); }
     .input-base { border: 1px solid var(--border-color); background-color: var(--background-color); color: var(--text-color); }
@@ -23,12 +24,9 @@
     .btn-primary:hover { filter: brightness(0.95); }
     .link-primary { color: var(--primary-color); }
     .link-primary:hover { text-decoration: underline; }
-    .logo {
-    width: 40px;
-    height: 40px;
-    object-fit: contain;
-    background-color: var(--muted); /* Fallback-kleur als het logo niet laadt */
-    }
+    header { background-color: var(--background-color); color: var(--text-color); }
+    .logo { width: 40px; height: 40px; object-fit: contain; border: 1px solid var(--text-color); }
+    @media (max-width: 640px) { .logo { width: 32px; height: 32px; } }
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
@@ -43,21 +41,14 @@
       <nav class="flex space-x-4 items-center">
         <a href="{{ url_for('index') }}" class="px-4 py-2 rounded-md font-medium link-primary">Boeken Zoeken</a>
         <a href="{{ url_for('statistics') }}" class="px-4 py-2 rounded-md font-medium link-primary">Grafieken</a>
-        {% if is_admin %}
-          <a href="{{ url_for('settings') }}" class="px-4 py-2 rounded-md font-medium link-primary">Instellingen</a>
-        {% endif %}
-        {% if session.username %}
-          <span class="text-sm">Ingelogd als: {{ session.username }} ({{ session.role }})</span>
-          <a href="{{ url_for('logout') }}" class="px-4 py-2 rounded-md btn-primary">Uitloggen</a>
-        {% else %}
-          <a href="{{ url_for('login') }}" class="px-4 py-2 rounded-md btn-primary">Inloggen</a>
-          <a href="{{ url_for('register') }}" class="px-4 py-2 rounded-md btn-primary">Registreren</a>
-        {% endif %}
+        <a href="{{ url_for('settings') }}" class="px-4 py-2 rounded-md font-medium link-primary">Instellingen</a>
+        <span class="text-sm">Ingelogd als: {{ session.username }} ({{ session.role }})</span>
+        <a href="{{ url_for('logout') }}" class="px-4 py-2 rounded-md btn-primary">Uitloggen</a>
       </nav>
     </div>
   </header>
 
-  <div class="container mx-auto max-w-7xl p-4 flex-1">
+  <div class="container mx-auto max-w-7xl p-4 flex-1 flex flex-col">
     <!-- Flash messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
@@ -72,34 +63,58 @@
       {% endif %}
     {% endwith %}
 
-    <div class="card rounded-xl shadow-sm p-6">
+    <!-- Instellingen -->
+    <div class="card rounded-xl shadow-sm p-6 flex-1">
       <h2 class="text-2xl font-bold mb-4">Instellingen</h2>
-      {% if is_admin %}
-        <form method="POST" enctype="multipart/form-data">
-          <div class="mb-4">
-            <label for="color" class="block text-sm font-medium">Primaire kleur</label>
-            <input type="color" id="color" name="color" value="{{ settings.color }}" class="mt-1 block w-20 h-10 rounded-md input-base" />
+
+      <!-- Kleur en donkere modus -->
+      <h3 class="text-lg font-semibold mb-2">Algemene Instellingen</h3>
+      <form method="POST" class="mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="color" class="block text-sm font-medium">Thema Kleur</label>
+            <select id="color" name="color" class="mt-1 block w-full rounded-md shadow-sm input-base px-3 py-2">
+              <option value="#15d49b" {% if settings.color == '#15d49b' %}selected{% endif %}>Standaard (Cyaan)</option>
+              <option value="#ff0000" {% if settings.color == '#ff0000' %}selected{% endif %}>Rood</option>
+              <option value="#0000ff" {% if settings.color == '#0000ff' %}selected{% endif %}>Blauw</option>
+              <option value="#008000" {% if settings.color == '#008000' %}selected{% endif %}>Groen</option>
+              <option value="#800080" {% if settings.color == '#800080' %}selected{% endif %}>Paars</option>
+              <option value="#ffa500" {% if settings.color == '#ffa500' %}selected{% endif %}>Oranje</option>
+              <option value="#00b7eb" {% if settings.color == '#00b7eb' %}selected{% endif %}>Cyaan</option>
+            </select>
           </div>
-          <div class="mb-4">
-            <label for="dark_mode" class="block text-sm font-medium">Donkere modus</label>
-            <input type="checkbox" id="dark_mode" name="dark_mode" {{ 'checked' if settings.dark_mode else '' }} class="mt-1 h-4 w-4 text-blue-600 rounded" />
+          <div class="flex items-center">
+            <input type="checkbox" id="dark_mode" name="dark_mode" class="h-4 w-4 text-blue-600 border-gray-300 rounded" {% if settings.dark_mode %}checked{% endif %} />
+            <label for="dark_mode" class="ml-2 block text-sm font-medium">Donkere modus</label>
           </div>
-          <div class="mb-4">
-            <label for="csv_file" class="block text-sm font-medium">CSV-bestand uploaden</label>
-            <input type="file" id="csv_file" name="csv_file" accept=".csv" class="mt-1 block w-full text-sm input-base file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200" />
-            <label class="inline-flex items-center mt-2">
-              <input type="checkbox" name="overwrite" class="h-4 w-4 text-blue-600 rounded" />
-              <span class="ml-2 text-sm">Overschrijven</span>
-            </label>
-          </div>
+        </div>
+        <div class="mt-4">
           <button type="submit" class="px-4 py-2 rounded-md btn-primary">Opslaan</button>
-        </form>
-      {% else %}
-        <p class="text-red-600">Alleen admins kunnen instellingen wijzigen.</p>
-        <p>Primaire kleur: <span style="color: {{ settings.color }}">{{ settings.color }}</span></p>
-        <p>Donkere modus: {{ 'Aan' if settings.dark_mode else 'Uit' }}</p>
+        </div>
+      </form>
+
+      <!-- CSV upload (alleen voor admins) -->
+      {% if is_admin %}
+      <h3 class="text-lg font-semibold mb-2">CSV Upload</h3>
+      <form method="POST" action="{{ url_for('upload_csv') }}" enctype="multipart/form-data" class="mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="csv_file" class="block text-sm font-medium">CSV-bestand</label>
+            <input type="file" id="csv_file" name="csv_file" accept=".csv" class="mt-1 block w-full text-sm input-base px-3 py-2" />
+          </div>
+          <div class="flex items-center">
+            <input type="checkbox" id="overwrite" name="overwrite" class="h-4 w-4 text-blue-600 border-gray-300 rounded" />
+            <label for="overwrite" class="ml-2 block text-sm font-medium">Bestaande boeken overschrijven</label>
+          </div>
+        </div>
+        <div class="mt-4">
+          <button type="submit" class="px-4 py-2 rounded-md btn-primary">Uploaden</button>
+        </div>
+      </form>
       {% endif %}
+
     </div>
+    <p class="text-center mt-6 italic" style="color: var(--muted);">Versie 1.4.7 | Logo by <a href="https://www.flaticon.com" class="link-primary">Flaticon</a></p>
   </div>
 </body>
 </html>
