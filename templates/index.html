@@ -8,13 +8,13 @@
   <style>
     :root {
       --primary-color: {{ settings.color }};
-      --background-color: {{ '#1f2937' if settings.dark_mode else '#ffffff' }}; /* gray-800 vs white */
-      --text-color: {{ '#f9fafb' if settings.dark_mode else '#111827' }};       /* gray-50 vs gray-900 */
-      --card-bg: {{ '#111827' if settings.dark_mode else '#ffffff' }};           /* gray-900 vs white */
-      --row-odd: {{ '#0f172a' if settings.dark_mode else '#ffffff' }};           /* slate-950 vs white */
-      --row-even: {{ '#111827' if settings.dark_mode else '#f9fafb' }};          /* gray-900 vs gray-50 */
-      --muted: {{ '#9ca3af' if settings.dark_mode else '#6b7280' }};             /* gray-400 vs gray-500 */
-      --border-color: {{ '#374151' if settings.dark_mode else '#e5e7eb' }};      /* gray-700 vs gray-200 */
+      --background-color: {{ '#1f2937' if settings.dark_mode else '#ffffff' }};
+      --text-color: {{ '#f9fafb' if settings.dark_mode else '#111827' }};
+      --card-bg: {{ '#111827' if settings.dark_mode else '#ffffff' }};
+      --row-odd: {{ '#0f172a' if settings.dark_mode else '#ffffff' }};
+      --row-even: {{ '#111827' if settings.dark_mode else '#f9fafb' }};
+      --muted: {{ '#9ca3af' if settings.dark_mode else '#6b7280' }};
+      --border-color: {{ '#374151' if settings.dark_mode else '#e5e7eb' }};
       --focus-ring: {{ settings.color }};
     }
     html, body { height: 100%; }
@@ -59,27 +59,7 @@
       {% endwith %}
 
       <!-- Zoeksectie -->
-      <h2 class="text-2xl font-bold mb-4">Zoeken</h2>
-
-      <!-- Boek toevoegen form -->
-      <div id="addBookForm" class="hidden mb-6">
-        <h3 class="text-lg font-semibold mb-3">Boek Toevoegen</h3>
-        <form id="addBookFormSubmit" method="POST" class="space-y-4">
-          <input type="hidden" name="action" value="add_book" />
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {% for field in ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'prijs', 'paginas', 'bindwijze', 'edition', 'isbn', 'reeks_nr', 'uitgeverij', 'serie', 'staat', 'taal', 'gesigneerd', 'gelezen'] %}
-              <div>
-                <label for="add_{{ field }}" class="block text-sm font-medium">{{ field.replace('_', ' ').title() }}</label>
-                <input type="text" id="add_{{ field }}" name="add_{{ field }}" class="mt-1 block w-full rounded-md shadow-sm input-base px-3 py-2" />
-              </div>
-            {% endfor %}
-          </div>
-          <div class="flex flex-wrap gap-3">
-            <button type="submit" class="px-4 py-2 rounded-md btn-primary">Toevoegen</button>
-            <button type="button" id="cancelAddBook" class="px-4 py-2 rounded-md bg-gray-500 text-white hover:bg-gray-600">Annuleren</button>
-          </div>
-        </form>
-      </div>
+      <h2 class="text-2xl font-bold mb-4">Zoeken{% if edit_book_data %} of Boek Bewerken{% else %} of Boek Toevoegen{% endif %}</h2>
 
       <!-- Boekkaft -->
       <div id="coverSection" class="hidden mb-6">
@@ -87,19 +67,26 @@
         <img id="coverImage" src="" alt="Boekkaft" class="max-w-xs rounded shadow-md" />
       </div>
 
-      <!-- Zoekformulier -->
+      <!-- Zoek-, toevoeg- en bewerkformulier -->
       <form id="searchForm" method="POST" class="mb-6">
+        <input type="hidden" name="action" id="form_action" value="search">
+        <input type="hidden" name="book_id" id="book_id" value="{{ edit_book_data.book_id if edit_book_data else '' }}">
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {% for field in ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'uitgeverij', 'isbn', 'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition'] %}
+          {% for field in ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'prijs', 'paginas', 'uitgeverij', 'isbn', 'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition'] %}
             <div>
               <label for="{{ field }}" class="block text-sm font-medium">{{ field.replace('_', ' ').title() }}</label>
-              <input type="text" id="{{ field }}" name="{{ field }}" value="{{ filters[field] if field in filters else '' }}" class="mt-1 block w-full rounded-md shadow-sm input-base px-3 py-2" />
+              <input type="text" id="{{ field }}" name="{{ field }}" value="{{ edit_book_data[field] if edit_book_data and field in edit_book_data else filters[field] if field in filters else '' }}" class="mt-1 block w-full rounded-md shadow-sm input-base px-3 py-2" />
             </div>
           {% endfor %}
         </div>
         <div class="flex flex-wrap gap-3 mt-4">
-          <button type="submit" name="action" value="search" class="px-4 py-2 rounded-md btn-primary">Zoeken</button>
-          <button type="button" id="addBookButton" class="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700">Boek Toevoegen</button>
+          <button type="submit" onclick="document.getElementById('form_action').value='search'" class="px-4 py-2 rounded-md btn-primary">Zoeken</button>
+          {% if edit_book_data %}
+            <button type="submit" onclick="document.getElementById('form_action').value='edit'" class="px-4 py-2 rounded-md btn-primary">Bijwerken</button>
+          {% else %}
+            <button type="submit" onclick="document.getElementById('form_action').value='add'" class="px-4 py-2 rounded-md btn-primary">Toevoegen</button>
+          {% endif %}
+          <button type="button" onclick="window.location.href='{{ url_for('index') }}'" class="px-4 py-2 rounded-md bg-gray-500 text-white hover:bg-gray-600">Annuleren</button>
         </div>
       </form>
 
@@ -155,7 +142,10 @@
                 <td class="px-3 py-2 text-sm">{{ book[15] }}</td>
                 <td class="px-3 py-2 text-sm">{{ book[16] }}</td>
                 <td class="px-3 py-2 text-sm">
-                  <a href="{{ url_for('edit_book', book_id=book[0]) }}" class="link-primary">Bewerken</a>
+                  <a href="{{ url_for('edit_book', book_id=book[0]) }}" class="link-primary">Bewerken</a> |
+                  <form action="{{ url_for('delete_book', book_id=book[0]) }}" method="POST" style="display:inline;">
+                    <button type="submit" class="link-primary" onclick="return confirm('Weet je zeker dat je dit boek wilt verwijderen?')">Verwijderen</button>
+                  </form>
                 </td>
               </tr>
             {% endfor %}
@@ -170,20 +160,12 @@
   <script>
     const searchForm = document.getElementById('searchForm');
     const inputs = searchForm.querySelectorAll('input');
-    const addBookButton = document.getElementById('addBookButton');
-    const addBookForm = document.getElementById('addBookForm');
-    const addBookFormSubmit = document.getElementById('addBookFormSubmit');
-    const cancelAddBook = document.getElementById('cancelAddBook');
     const coverSection = document.getElementById('coverSection');
     const coverImage = document.getElementById('coverImage');
     const totalBooks = document.getElementById('totalBooks');
     const totalPriceEl = document.getElementById('totalPrice');
     const totalPagesEl = document.getElementById('totalPages');
     let debounceTimeout; let coverDebounceTimeout;
-
-    // Toggle add form
-    addBookButton.addEventListener('click', () => addBookForm.classList.toggle('hidden'));
-    cancelAddBook.addEventListener('click', () => { addBookForm.classList.add('hidden'); addBookFormSubmit.reset(); });
 
     function showFlashMessage(message, category) {
       const flashContainer = document.querySelector('.flash-container') || (() => { const el=document.createElement('div'); el.className='flash-container space-y-2 mb-4'; searchForm.insertAdjacentElement('beforebegin', el); return el; })();
@@ -209,7 +191,7 @@
     function formatCurrency(value){ try{ const v=Number(value)||0; return v.toFixed(2); }catch{ return '0.00'; } }
 
     function updateBooks() {
-      const formData = {}; inputs.forEach(input => { const v=input.value.trim(); if(v) formData[input.name]=v; });
+      const formData = {}; inputs.forEach(input => { const v=input.value.trim(); if(v && input.name !== 'action' && input.name !== 'book_id') formData[input.name]=v; });
       fetch('/search',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(formData)})
         .then(r=>r.json())
         .then(books=>{
@@ -236,7 +218,12 @@
               <td class='px-3 py-2 text-sm'>${book.taal||''}</td>
               <td class='px-3 py-2 text-sm'>${book.gesigneerd||''}</td>
               <td class='px-3 py-2 text-sm'>${book.gelezen||''}</td>
-              <td class='px-3 py-2 text-sm'><a href='/edit/${book.id}' class='link-primary'>Bewerken</a></td>`;
+              <td class='px-3 py-2 text-sm'>
+                <a href='/edit/${book.id}' class='link-primary'>Bewerken</a> |
+                <form action='/delete/${book.id}' method='POST' style='display:inline;'>
+                  <button type='submit' class='link-primary' onclick='return confirm("Weet je zeker dat je dit boek wilt verwijderen?")'>Verwijderen</button>
+                </form>
+              </td>`;
             tbody.appendChild(tr);
           });
           totalBooks.textContent=books.length;
@@ -257,7 +244,7 @@
 
     // Form submit: voorkom page reload voor zoekactie
     searchForm.addEventListener('submit', (e)=>{
-      if (e.submitter && e.submitter.value === 'search') {
+      if (e.submitter && document.getElementById('form_action').value === 'search') {
         e.preventDefault();
         const fd=new FormData(searchForm);
         fetchCover((fd.get('titel')||'').trim(), (fd.get('isbn')||'').trim());

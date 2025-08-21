@@ -8,12 +8,12 @@ import json
 from io import StringIO
 
 app = Flask(__name__)
-app.secret_key = "your_secret_key"  # Voor flash-berichten en sessiebeheer
+app.secret_key = "your_secret_key"
 app.config['SESSION_TYPE'] = 'filesystem'
 
-# Database initialization (geen CSV-load meer; alleen tabellen creëren)
+# Database initialization
 def init_db():
-    print("Initializing database...")  # Debug log
+    print("Initializing database...")
     conn = sqlite3.connect('books.db')
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS books
@@ -44,21 +44,19 @@ def init_db():
         c.execute('INSERT INTO settings (color, dark_mode) VALUES (?, ?)', ('#15d49b', 0))
     conn.commit()
     conn.close()
-    print("Database initialized successfully.")  # Debug log
+    print("Database initialized successfully.")
 
-# Load CSV into SQLite (ALLEEN voor geüploade bestanden; lokale paden verwijderd)
+# Load CSV into SQLite
 def load_csv_to_db(csv_source, overwrite=False):
     try:
-        # Alleen ondersteuning voor geüploade bestanden (geen lokale paden meer)
         if not hasattr(csv_source, 'read'):
             raise ValueError("Alleen geüploade CSV-bestanden worden ondersteund.")
         
-        # Probeer meerdere encodings
         encodings = ['utf-8-sig', 'iso-8859-1', 'windows-1252']
         df = None
         for encoding in encodings:
             try:
-                csv_source.seek(0)  # Reset bestandspositie
+                csv_source.seek(0)
                 df = pd.read_csv(StringIO(csv_source.read().decode(encoding)), sep=None, engine="python")
                 print(f"Succes: CSV gelezen met encoding {encoding}")
                 break
@@ -68,64 +66,37 @@ def load_csv_to_db(csv_source, overwrite=False):
         if df is None:
             raise ValueError("Geen geschikte encoding gevonden voor het geüploade CSV-bestand")
 
-        print(f"Gelezen kolomnamen (voor verwerking): {list(df.columns)}")  # Log de ruwe kolomnamen
-        
-        # Verwijder BOM en normaliseer kolomnamen
+        print(f"Gelezen kolomnamen (voor verwerking): {list(df.columns)}")
         df.columns = [col.replace('\ufeff', '').strip() for col in df.columns]
         print(f"Kolomnamen na BOM-verwijdering: {list(df.columns)}")
         
-        # Mapping van mogelijke CSV-kolomnamen naar databasekolommen
         column_mapping = {
-            'Titel': 'titel',
-            'titel': 'titel',
-            'Auteur voornaam': 'auteur_voornaam',
-            'Auteur_voornaam': 'auteur_voornaam',
-            'auteur voornaam': 'auteur_voornaam',
-            'Auteur achternaam': 'auteur_achternaam',
-            'Auteur_achternaam': 'auteur_achternaam',
-            'auteur achternaam': 'auteur_achternaam',
-            'Genre': 'genre',
-            'genre': 'genre',
-            'Prijs': 'prijs',
-            'prijs': 'prijs',
-            "Pagina's": 'paginas',
-            "pagina's": 'paginas',
-            'paginas': 'paginas',
-            'Bindwijze': 'bindwijze',
-            'bindwijze': 'bindwijze',
-            'Edition': 'edition',
-            'edition': 'edition',
-            'ISBN': 'isbn',
-            'isbn': 'isbn',
-            'Reeks nr': 'reeks_nr',
-            'Reeks_nr': 'reeks_nr',
-            'reeks nr': 'reeks_nr',
-            'reeks_nr': 'reeks_nr',
-            'Uitgeverij': 'uitgeverij',
-            'uitgeverij': 'uitgeverij',
-            'Serie': 'serie',
-            'serie': 'serie',
-            'Staat': 'staat',
-            'staat': 'staat',
-            'Taal': 'taal',
-            'taal': 'taal',
-            'Gesigneerd': 'gesigneerd',
-            'gesigneerd': 'gesigneerd',
-            'Gelezen': 'gelezen',
-            'gelezen': 'gelezen'
+            'Titel': 'titel', 'titel': 'titel',
+            'Auteur voornaam': 'auteur_voornaam', 'Auteur_voornaam': 'auteur_voornaam', 'auteur voornaam': 'auteur_voornaam',
+            'Auteur achternaam': 'auteur_achternaam', 'Auteur_achternaam': 'auteur_achternaam', 'auteur achternaam': 'auteur_achternaam',
+            'Genre': 'genre', 'genre': 'genre',
+            'Prijs': 'prijs', 'prijs': 'prijs',
+            "Pagina's": 'paginas', "pagina's": 'paginas', 'paginas': 'paginas',
+            'Bindwijze': 'bindwijze', 'bindwijze': 'bindwijze',
+            'Edition': 'edition', 'edition': 'edition',
+            'ISBN': 'isbn', 'isbn': 'isbn',
+            'Reeks nr': 'reeks_nr', 'Reeks_nr': 'reeks_nr', 'reeks nr': 'reeks_nr', 'reeks_nr': 'reeks_nr',
+            'Uitgeverij': 'uitgeverij', 'uitgeverij': 'uitgeverij',
+            'Serie': 'serie', 'serie': 'serie',
+            'Staat': 'staat', 'staat': 'staat',
+            'Taal': 'taal', 'taal': 'taal',
+            'Gesigneerd': 'gesigneerd', 'gesigneerd': 'gesigneerd',
+            'Gelezen': 'gelezen', 'gelezen': 'gelezen'
         }
         
-        # Hernoem kolommen naar de verwachte databasekolommen
         df.columns = [column_mapping.get(col.strip(), col.lower()) for col in df.columns]
         print(f"Genormaliseerde kolomnamen: {list(df.columns)}")
         
-        # Controleer op verplichte kolommen
         required_columns = ['titel']
         missing_required = [col for col in required_columns if col not in df.columns]
         if missing_required:
             return False, f"Fout: Verplichte kolommen ontbreken in het CSV-bestand: {missing_required}"
         
-        # Controleer op ontbrekende optionele kolommen
         expected_columns = ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'prijs', 'paginas', 
                             'bindwijze', 'edition', 'isbn', 'reeks_nr', 'uitgeverij', 'serie', 'staat', 
                             'taal', 'gesigneerd', 'gelezen']
@@ -135,11 +106,9 @@ def load_csv_to_db(csv_source, overwrite=False):
             for col in missing_columns:
                 df[col] = ''
         
-        # Verwijder duplicaten (minder strikt, alleen op titel en isbn)
         df = df.drop_duplicates(subset=["titel", "isbn"], keep="first")
         print(f"Aantal boeken na duplicaatverwijdering: {len(df)}")
         
-        # Converteer prijs, pagina's en reeks_nr naar numeriek
         if "prijs" in df.columns:
             df['prijs'] = df['prijs'].replace({r'€': '', r'\,': '.'}, regex=True)
             df['prijs'] = pd.to_numeric(df['prijs'], errors='coerce').fillna(0)
@@ -152,7 +121,6 @@ def load_csv_to_db(csv_source, overwrite=False):
         
         conn = sqlite3.connect('books.db')
         c = conn.cursor()
-        # Controleer of de database al gegevens bevat
         c.execute('SELECT COUNT(*) FROM books')
         existing_count = c.fetchone()[0]
         print(f"Aantal bestaande boeken in database: {existing_count}")
@@ -169,9 +137,7 @@ def load_csv_to_db(csv_source, overwrite=False):
             conn.close()
             return True, f"Succes: {len(df)} boeken geïmporteerd"
         else:
-            # Alleen nieuwe boeken toevoegen (bestaande logica behouden)
             for _, row in df.iterrows():
-                # Voeg toe als niet duplicate (op titel en isbn)
                 c.execute('''SELECT COUNT(*) FROM books WHERE titel = ? AND isbn = ?''', (row['titel'], row['isbn']))
                 if c.fetchone()[0] == 0:
                     c.execute('''INSERT INTO books (titel, auteur_voornaam, auteur_achternaam, genre, prijs, paginas, bindwijze, edition, isbn, reeks_nr, uitgeverij, serie, staat, taal, gesigneerd, gelezen, added_date)
@@ -182,7 +148,7 @@ def load_csv_to_db(csv_source, overwrite=False):
     except Exception as e:
         return False, f"Fout bij importeren: {str(e)}"
 
-# Initialize database and load CSV
+# Initialize database
 init_db()
 
 # Get settings
@@ -211,35 +177,36 @@ def index():
     settings = get_settings()
     conn = sqlite3.connect('books.db')
     c = conn.cursor()
-    query = 'SELECT * FROM books'
     filters = {}
-    params = []  # Initialiseer params om UnboundLocalError te voorkomen
-
+    edit_book_data = {}  # Voor het vullen van het formulier bij bewerken
+    
     if request.method == 'POST':
-        action = request.form.get('action', '')  # Controleer of het zoeken of toevoegen is
-        if action == 'add_book':
+        action = request.form.get('action', 'search')
+        
+        if action == 'add':
             # Boek toevoegen
             data = {
-                'titel': request.form.get('add_titel', ''),
-                'auteur_voornaam': request.form.get('add_auteur_voornaam', ''),
-                'auteur_achternaam': request.form.get('add_auteur_achternaam', ''),
-                'genre': request.form.get('add_genre', ''),
-                'prijs': float(request.form.get('add_prijs', 0)) if request.form.get('add_prijs', '') else 0.0,
-                'paginas': int(request.form.get('add_paginas', 0)) if request.form.get('add_paginas', '') else 0,
-                'bindwijze': request.form.get('add_bindwijze', ''),
-                'edition': request.form.get('add_edition', ''),
-                'isbn': request.form.get('add_isbn', ''),
-                'reeks_nr': request.form.get('add_reeks_nr', ''),
-                'uitgeverij': request.form.get('add_uitgeverij', ''),
-                'serie': request.form.get('add_serie', ''),
-                'staat': request.form.get('add_staat', ''),
-                'taal': request.form.get('add_taal', ''),
-                'gesigneerd': request.form.get('add_gesigneerd', ''),
-                'gelezen': request.form.get('add_gelezen', ''),
+                'titel': request.form.get('titel', ''),
+                'auteur_voornaam': request.form.get('auteur_voornaam', ''),
+                'auteur_achternaam': request.form.get('auteur_achternaam', ''),
+                'genre': request.form.get('genre', ''),
+                'prijs': float(request.form.get('prijs', 0)) if request.form.get('prijs', '') else 0.0,
+                'paginas': int(request.form.get('paginas', 0)) if request.form.get('paginas', '') else 0,
+                'bindwijze': request.form.get('bindwijze', ''),
+                'edition': request.form.get('edition', ''),
+                'isbn': request.form.get('isbn', ''),
+                'reeks_nr': request.form.get('reeks_nr', ''),
+                'uitgeverij': request.form.get('uitgeverij', ''),
+                'serie': request.form.get('serie', ''),
+                'staat': request.form.get('staat', ''),
+                'taal': request.form.get('taal', ''),
+                'gesigneerd': request.form.get('gesigneerd', ''),
+                'gelezen': request.form.get('gelezen', ''),
                 'added_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             }
-            if not any(data.values()):
-                flash("Vul ten minste één veld in!", "error")
+            
+            if not data['titel']:
+                flash("Titel is verplicht!", "error")
             else:
                 try:
                     c.execute('''INSERT INTO books (titel, auteur_voornaam, auteur_achternaam, genre, prijs, paginas, bindwijze, edition, isbn, reeks_nr, uitgeverij, serie, staat, taal, gesigneerd, gelezen, added_date)
@@ -249,52 +216,129 @@ def index():
                     flash("Boek succesvol toegevoegd!", "success")
                 except sqlite3.Error as e:
                     flash(f"Fout bij toevoegen boek: {str(e)}", "error")
-        else:
-            # Zoeken
-            where_clauses = []
-            for col in ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'uitgeverij', 'isbn', 'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition']:
-                value = request.form.get(col, '').strip()
-                if value:
-                    filters[col] = value
-                    where_clauses.append(f"{col} LIKE ?")
-                    params.append('%' + value + '%')
-            if where_clauses:
-                query += ' WHERE ' + ' AND '.join(where_clauses)
-
-    # Voer de query uit
-    try:
-        c.execute(query + ' ORDER BY genre ASC, auteur_achternaam ASC, reeks_nr ASC', params)
-        books = c.fetchall()
-    except sqlite3.Error as e:
-        flash(f"Databasefout bij ophalen boeken: {str(e)}", "error")
-        books = []
+        
+        elif action == 'edit':
+            # Boek bijwerken
+            book_id = request.form.get('book_id', '')
+            if not book_id:
+                flash("Geen boek-ID opgegeven!", "error")
+            else:
+                data = {
+                    'titel': request.form.get('titel', ''),
+                    'auteur_voornaam': request.form.get('auteur_voornaam', ''),
+                    'auteur_achternaam': request.form.get('auteur_achternaam', ''),
+                    'genre': request.form.get('genre', ''),
+                    'prijs': float(request.form.get('prijs', 0)) if request.form.get('prijs', '') else 0.0,
+                    'paginas': int(request.form.get('paginas', 0)) if request.form.get('paginas', '') else 0,
+                    'bindwijze': request.form.get('bindwijze', ''),
+                    'edition': request.form.get('edition', ''),
+                    'isbn': request.form.get('isbn', ''),
+                    'reeks_nr': request.form.get('reeks_nr', ''),
+                    'uitgeverij': request.form.get('uitgeverij', ''),
+                    'serie': request.form.get('serie', ''),
+                    'staat': request.form.get('staat', ''),
+                    'taal': request.form.get('taal', ''),
+                    'gesigneerd': request.form.get('gesigneerd', ''),
+                    'gelezen': request.form.get('gelezen', ''),
+                    'added_date': request.form.get('added_date', '')  # Behoud originele toevoegdatum
+                }
+                
+                if not data['titel']:
+                    flash("Titel is verplicht!", "error")
+                else:
+                    try:
+                        c.execute('''UPDATE books SET titel = ?, auteur_voornaam = ?, auteur_achternaam = ?, genre = ?, prijs = ?, paginas = ?, bindwijze = ?, edition = ?, isbn = ?, reeks_nr = ?, uitgeverij = ?, serie = ?, staat = ?, taal = ?, gesigneerd = ?, gelezen = ?, added_date = ?
+                                     WHERE id = ?''', tuple(data.values()) + (book_id,))
+                        conn.commit()
+                        flash("Boek succesvol bijgewerkt!", "success")
+                    except sqlite3.Error as e:
+                        flash(f"Fout bij bijwerken boek: {str(e)}", "error")
+        
+        # Zoeken
+        query = 'SELECT * FROM books'
+        params = []
+        where_clauses = []
+        for col in ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'uitgeverij', 'isbn', 'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition']:
+            value = request.form.get(col, '').strip()
+            if value:
+                filters[col] = value
+                where_clauses.append(f"{col} LIKE ?")
+                params.append(f'%{value}%')
+        
+        if where_clauses:
+            query += ' WHERE ' + ' AND '.join(where_clauses)
+        
+        try:
+            c.execute(query + ' ORDER BY genre ASC, auteur_achternaam ASC, reeks_nr ASC', params)
+            books = c.fetchall()
+        except sqlite3.Error as e:
+            flash(f"Databasefout bij ophalen boeken: {str(e)}", "error")
+            books = []
+    else:
+        # GET request: toon alle boeken of vul formulier voor bewerken
+        book_id = request.args.get('edit_book_id')
+        if book_id:
+            try:
+                c.execute('SELECT * FROM books WHERE id = ?', (book_id,))
+                book = c.fetchone()
+                if book:
+                    edit_book_data = {
+                        'book_id': book[0],
+                        'titel': book[1],
+                        'auteur_voornaam': book[2],
+                        'auteur_achternaam': book[3],
+                        'genre': book[4],
+                        'prijs': book[5],
+                        'paginas': book[6],
+                        'bindwijze': book[7],
+                        'edition': book[8],
+                        'isbn': book[9],
+                        'reeks_nr': book[10],
+                        'uitgeverij': book[11],
+                        'serie': book[12],
+                        'staat': book[13],
+                        'taal': book[14],
+                        'gesigneerd': book[15],
+                        'gelezen': book[16],
+                        'added_date': book[17]
+                    }
+                else:
+                    flash("Boek niet gevonden!", "error")
+            except sqlite3.Error as e:
+                flash(f"Databasefout bij ophalen boek: {str(e)}", "error")
+        
+        try:
+            c.execute('SELECT * FROM books ORDER BY genre ASC, auteur_achternaam ASC, reeks_nr ASC')
+            books = c.fetchall()
+        except sqlite3.Error as e:
+            flash(f"Databasefout bij ophalen boeken: {str(e)}", "error")
+            books = []
+    
     conn.close()
-
     df = pd.DataFrame(books, columns=['id', 'titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'prijs', 'paginas', 'bindwijze', 'edition', 'isbn', 'reeks_nr', 'uitgeverij', 'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'added_date'])
     total_price = df['prijs'].sum() if not df.empty else 0
     total_pages = df['paginas'].sum() if not df.empty else 0
-
-
-    return render_template('index.html', books=books, total_price=total_price, total_pages=total_pages, filters=filters, settings=settings)
+    
+    return render_template('index.html', books=books, total_price=total_price, total_pages=total_pages, filters=filters, settings=settings, edit_book_data=edit_book_data)
 
 @app.route('/search', methods=['POST'])
 def search():
-    filters = request.get_json()
+    filters = request.get_json() or {}
     conn = sqlite3.connect('books.db')
     c = conn.cursor()
     query = 'SELECT * FROM books'
     params = []
     where_clauses = []
-
+    
     for col in ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'uitgeverij', 'isbn', 'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition']:
         value = filters.get(col, '').strip()
         if value:
             where_clauses.append(f"{col} LIKE ?")
-            params.append('%' + value + '%')
-
+            params.append(f'%{value}%')
+    
     if where_clauses:
         query += ' WHERE ' + ' AND '.join(where_clauses)
-
+    
     try:
         c.execute(query + ' ORDER BY genre ASC, auteur_achternaam ASC, reeks_nr ASC', params)
         books = c.fetchall()
@@ -302,26 +346,13 @@ def search():
         flash(f"Databasefout bij zoeken: {str(e)}", "error")
         books = []
     conn.close()
-
+    
     return jsonify([{
-        'id': book[0],
-        'titel': book[1],
-        'auteur_voornaam': book[2],
-        'auteur_achternaam': book[3],
-        'genre': book[4],
-        'prijs': book[5],
-        'paginas': book[6],
-        'bindwijze': book[7],
-        'edition': book[8],
-        'isbn': book[9],
-        'reeks_nr': book[10],
-        'uitgeverij': book[11],
-        'serie': book[12],
-        'staat': book[13],
-        'taal': book[14],
-        'gesigneerd': book[15],
-        'gelezen': book[16],
-        'added_date': book[17]
+        'id': book[0], 'titel': book[1], 'auteur_voornaam': book[2], 'auteur_achternaam': book[3],
+        'genre': book[4], 'prijs': book[5], 'paginas': book[6], 'bindwijze': book[7],
+        'edition': book[8], 'isbn': book[9], 'reeks_nr': book[10], 'uitgeverij': book[11],
+        'serie': book[12], 'staat': book[13], 'taal': book[14], 'gesigneerd': book[15],
+        'gelezen': book[16], 'added_date': book[17]
     } for book in books])
 
 @app.route('/fetch_cover', methods=['POST'])
@@ -330,7 +361,7 @@ def fetch_cover():
     isbn = request.form.get('isbn', '').strip()
     if not title and not isbn:
         return jsonify({'cover_url': '', 'message': 'Vul een titel of ISBN in!', 'category': 'error'})
-
+    
     query = f"isbn:{isbn.replace('-', '')}" if isbn else f"intitle:{title.replace(' ', '+')}"
     try:
         response = requests.get(f"https://www.googleapis.com/books/v1/volumes?q={query}", timeout=3)
@@ -349,59 +380,14 @@ def fetch_cover():
     except requests.exceptions.RequestException as e:
         return jsonify({'cover_url': '', 'message': f'Fout bij extern zoeken: {str(e)}', 'category': 'error'})
 
-@app.route('/edit/<int:book_id>', methods=['GET', 'POST'])
+@app.route('/edit/<int:book_id>', methods=['GET'])
 def edit_book(book_id):
-    settings = get_settings()
-    conn = sqlite3.connect('books.db')
-    c = conn.cursor()
-    try:
-        c.execute('SELECT * FROM books WHERE id = ?', (book_id,))
-        book = c.fetchone()
-    except sqlite3.Error as e:
-        flash(f"Databasefout bij ophalen boek: {str(e)}", "error")
-        conn.close()
-        return redirect(url_for('index'))
-
-    if not book:
-        flash("Boek niet gevonden!", "error")
-        conn.close()
-        return redirect(url_for('index'))
-
-    if request.method == 'POST':
-        data = {
-            'titel': request.form.get('titel', ''),
-            'auteur_voornaam': request.form.get('auteur_voornaam', ''),
-            'auteur_achternaam': request.form.get('auteur_achternaam', ''),
-            'genre': request.form.get('genre', ''),
-            'prijs': float(request.form.get('prijs', 0)) if request.form.get('prijs', '') else 0.0,
-            'paginas': int(request.form.get('paginas', 0)) if request.form.get('paginas', '') else 0,
-            'bindwijze': request.form.get('bindwijze', ''),
-            'edition': request.form.get('edition', ''),
-            'isbn': request.form.get('isbn', ''),
-            'reeks_nr': request.form.get('reeks_nr', ''),
-            'uitgeverij': request.form.get('uitgeverij', ''),
-            'serie': request.form.get('serie', ''),
-            'staat': request.form.get('staat', ''),
-            'taal': request.form.get('taal', ''),
-            'gesigneerd': request.form.get('gesigneerd', ''),
-            'gelezen': request.form.get('gelezen', ''),
-            'added_date': book[17]  # Behoud originele toevoegdatum
-        }
-        try:
-            c.execute('''UPDATE books SET titel = ?, auteur_voornaam = ?, auteur_achternaam = ?, genre = ?, prijs = ?, paginas = ?, bindwijze = ?, edition = ?, isbn = ?, reeks_nr = ?, uitgeverij = ?, serie = ?, staat = ?, taal = ?, gesigneerd = ?, gelezen = ?, added_date = ?
-                         WHERE id = ?''', tuple(data.values()) + (book_id,))
-            conn.commit()
-            flash("Boek succesvol bijgewerkt!", "success")
-        except sqlite3.Error as e:
-            flash(f"Fout bij bijwerken boek: {str(e)}", "error")
-        conn.close()
-        return redirect(url_for('index'))
-    conn.close()
-    return render_template('edit_book.html', book=book, settings=settings)
+    # Redirect naar index met book_id als query parameter
+    return redirect(url_for('index', edit_book_id=book_id))
 
 @app.route('/delete/<int:book_id>', methods=['POST'])
 def delete_book(book_id):
-    print(f"Delete route called with book_id: {book_id}")  # Debug log
+    print(f"Delete route called with book_id: {book_id}")
     conn = sqlite3.connect('books.db')
     c = conn.cursor()
     try:
@@ -455,7 +441,6 @@ def statistics():
         return render_template('statistics.html', charts={}, settings=settings)
     conn.close()
 
-    # Data voor grafieken
     charts = {}
     if not df.empty:
         if "genre" in df.columns:
@@ -484,7 +469,7 @@ def statistics():
             avg_price = df.groupby("genre")["prijs"].mean().to_dict()
             charts['avg_price'] = {'labels': list(avg_price.keys()), 'data': [round(v, 2) for v in avg_price.values()]}
     
-    print(f"Charts data: {charts}")  # Debug log
+    print(f"Charts data: {charts}")
     if not isinstance(charts, dict):
         flash("Fout: ongeldige grafiekdata!", "error")
         charts = {}
