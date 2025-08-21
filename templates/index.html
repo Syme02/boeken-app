@@ -31,34 +31,44 @@
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
-  <div class="container mx-auto max-w-7xl p-4 flex-1 flex flex-col">
-    <!-- Header / Tabs -->
-    <div class="mb-6">
-      <h1 class="text-3xl font-extrabold text-center mb-4">Boeken Applicatie</h1>
-      <nav class="flex space-x-2 border-b" style="border-color: var(--border-color);">
-        <a href="{{ url_for('index') }}" class="px-4 py-2 rounded-t-lg font-medium shadow-sm card" style="border-bottom: none; color: var(--primary-color);">Boeken Zoeken</a>
-        <a href="{{ url_for('statistics') }}" class="px-4 py-2 rounded-t-lg hover:underline" style="color: var(--text-color);">Grafieken</a>
-        <a href="{{ url_for('settings') }}" class="px-4 py-2 rounded-t-lg hover:underline" style="color: var(--text-color);">Instellingen</a>
+  <header class="bg-white dark:bg-gray-800 shadow">
+    <div class="container mx-auto max-w-7xl p-4 flex justify-between items-center">
+      <h1 class="text-2xl font-bold">Boeken Applicatie</h1>
+      <nav class="flex space-x-4 items-center">
+        <a href="{{ url_for('index') }}" class="px-4 py-2 rounded-md font-medium link-primary">Boeken Zoeken</a>
+        <a href="{{ url_for('statistics') }}" class="px-4 py-2 rounded-md font-medium link-primary">Grafieken</a>
+        {% if is_admin %}
+          <a href="{{ url_for('settings') }}" class="px-4 py-2 rounded-md font-medium link-primary">Instellingen</a>
+        {% endif %}
+        {% if session.username %}
+          <span class="text-sm">Ingelogd als: {{ session.username }} ({{ session.role }})</span>
+          <a href="{{ url_for('logout') }}" class="px-4 py-2 rounded-md btn-primary">Uitloggen</a>
+        {% else %}
+          <a href="{{ url_for('login') }}" class="px-4 py-2 rounded-md btn-primary">Inloggen</a>
+          <a href="{{ url_for('register') }}" class="px-4 py-2 rounded-md btn-primary">Registreren</a>
+        {% endif %}
       </nav>
     </div>
+  </header>
 
-    <!-- Content Card -->
+  <!-- De rest van index.html blijft ongewijzigd -->
+  <div class="container mx-auto max-w-7xl p-4 flex-1 flex flex-col">
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="space-y-2 mb-4">
+          {% for category, message in messages %}
+            <div class="p-3 rounded-lg text-white shadow-md"
+                 style="background-color: {% if category=='success' %}#16a34a{% elif category=='error' %}#dc2626{% else %}#2563eb{% endif %};">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- Zoeksectie -->
     <div class="card rounded-xl shadow-sm p-6 flex-1">
-      <!-- Flash messages -->
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          <div class="space-y-2 mb-4">
-            {% for category, message in messages %}
-              <div class="p-3 rounded-lg text-white shadow-md"
-                   style="background-color: {% if category=='success' %}#16a34a{% elif category=='error' %}#dc2626{% else %}#2563eb{% endif %};">
-                {{ message }}
-              </div>
-            {% endfor %}
-          </div>
-        {% endif %}
-      {% endwith %}
-
-      <!-- Zoeksectie -->
       <h2 class="text-2xl font-bold mb-4">Zoeken{% if edit_book_data %} of Boek Bewerken{% else %} of Boek Toevoegen{% endif %}</h2>
 
       <!-- Boekkaft -->
@@ -75,16 +85,18 @@
           {% for field in ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'prijs', 'paginas', 'uitgeverij', 'isbn', 'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition'] %}
             <div>
               <label for="{{ field }}" class="block text-sm font-medium">{{ field.replace('_', ' ').title() }}</label>
-              <input type="text" id="{{ field }}" name="{{ field }}" value="{{ edit_book_data[field] if edit_book_data and field in edit_book_data else filters[field] if field in filters else '' }}" class="mt-1 block w-full rounded-md shadow-sm input-base px-3 py-2" />
+              <input type="text" id="{{ field }}" name="{{ field }}" value="{{ edit_book_data[field] if edit_book_data and field in edit_book_data else filters[field] if field in filters else '' }}" class="mt-1 block w-full rounded-md shadow-sm input-base px-3 py-2" {% if not is_admin and field not in ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'uitgeverij', 'isbn', 'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition'] %}disabled{% endif %} />
             </div>
           {% endfor %}
         </div>
         <div class="flex flex-wrap gap-3 mt-4">
           <button type="submit" onclick="document.getElementById('form_action').value='search'" class="px-4 py-2 rounded-md btn-primary">Zoeken</button>
-          {% if edit_book_data %}
-            <button type="submit" onclick="document.getElementById('form_action').value='edit'" class="px-4 py-2 rounded-md btn-primary">Bijwerken</button>
-          {% else %}
-            <button type="submit" onclick="document.getElementById('form_action').value='add'" class="px-4 py-2 rounded-md btn-primary">Toevoegen</button>
+          {% if is_admin %}
+            {% if edit_book_data %}
+              <button type="submit" onclick="document.getElementById('form_action').value='edit'" class="px-4 py-2 rounded-md btn-primary">Bijwerken</button>
+            {% else %}
+              <button type="submit" onclick="document.getElementById('form_action').value='add'" class="px-4 py-2 rounded-md btn-primary">Toevoegen</button>
+            {% endif %}
           {% endif %}
           <button type="button" onclick="window.location.href='{{ url_for('index') }}'" class="px-4 py-2 rounded-md bg-gray-500 text-white hover:bg-gray-600">Annuleren</button>
         </div>
@@ -142,10 +154,14 @@
                 <td class="px-3 py-2 text-sm">{{ book[15] }}</td>
                 <td class="px-3 py-2 text-sm">{{ book[16] }}</td>
                 <td class="px-3 py-2 text-sm">
-                  <a href="{{ url_for('edit_book', book_id=book[0]) }}" class="link-primary">Bewerken</a> |
-                  <form action="{{ url_for('delete_book', book_id=book[0]) }}" method="POST" style="display:inline;">
-                    <button type="submit" class="link-primary" onclick="return confirm('Weet je zeker dat je dit boek wilt verwijderen?')">Verwijderen</button>
-                  </form>
+                  {% if is_admin %}
+                    <a href="{{ url_for('edit_book', book_id=book[0]) }}" class="link-primary">Bewerken</a> |
+                    <form action="{{ url_for('delete_book', book_id=book[0]) }}" method="POST" style="display:inline;">
+                      <button type="submit" class="link-primary" onclick="return confirm('Weet je zeker dat je dit boek wilt verwijderen?')">Verwijderen</button>
+                    </form>
+                  {% else %}
+                    <span class="text-gray-500">Geen rechten</span>
+                  {% endif %}
                 </td>
               </tr>
             {% endfor %}
@@ -219,10 +235,14 @@
               <td class='px-3 py-2 text-sm'>${book.gesigneerd||''}</td>
               <td class='px-3 py-2 text-sm'>${book.gelezen||''}</td>
               <td class='px-3 py-2 text-sm'>
-                <a href='/edit/${book.id}' class='link-primary'>Bewerken</a> |
-                <form action='/delete/${book.id}' method='POST' style='display:inline;'>
-                  <button type='submit' class='link-primary' onclick='return confirm("Weet je zeker dat je dit boek wilt verwijderen?")'>Verwijderen</button>
-                </form>
+                {% if is_admin %}
+                  <a href='/edit/${book.id}' class='link-primary'>Bewerken</a> |
+                  <form action='/delete/${book.id}' method='POST' style='display:inline;'>
+                    <button type='submit' class='link-primary' onclick='return confirm("Weet je zeker dat je dit boek wilt verwijderen?")'>Verwijderen</button>
+                  </form>
+                {% else %}
+                  <span class='text-gray-500'>Geen rechten</span>
+                {% endif %}
               </td>`;
             tbody.appendChild(tr);
           });
@@ -230,7 +250,6 @@
           totalPriceEl.textContent=formatCurrency(sumPrice);
           totalPagesEl.textContent=sumPages;
 
-          // Als er precies 1 resultaat is, haal automatisch de cover op
           if(books.length===1){
             clearTimeout(coverDebounceTimeout);
             coverDebounceTimeout=setTimeout(()=>fetchCover(books[0].titel, books[0].isbn), 500);
@@ -239,10 +258,8 @@
         .catch(()=>showFlashMessage('Fout bij zoeken.','error'));
     }
 
-    // Live search met debounce
     inputs.forEach(input=> input.addEventListener('input', ()=>{ clearTimeout(debounceTimeout); debounceTimeout=setTimeout(updateBooks, 300); }));
 
-    // Form submit: voorkom page reload voor zoekactie
     searchForm.addEventListener('submit', (e)=>{
       if (e.submitter && document.getElementById('form_action').value === 'search') {
         e.preventDefault();

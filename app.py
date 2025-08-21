@@ -6,6 +6,7 @@ import requests
 from datetime import datetime
 import json
 from io import StringIO
+import bcrypt
 
 app = Flask(__name__)
 app.secret_key = "your_secret_key"
@@ -39,9 +40,19 @@ def init_db():
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   color TEXT,
                   dark_mode INTEGER)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS users
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  username TEXT UNIQUE,
+                  password TEXT,
+                  role TEXT)''')
     c.execute('SELECT * FROM settings')
     if not c.fetchone():
         c.execute('INSERT INTO settings (color, dark_mode) VALUES (?, ?)', ('#15d49b', 0))
+    # Voeg standaard admin-gebruiker toe als deze niet bestaat
+    c.execute('SELECT * FROM users WHERE username = ?', ('admin',))
+    if not c.fetchone():
+        hashed_password = bcrypt.hashpw('admin123'.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        c.execute('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', ('admin', hashed_password, 'admin'))
     conn.commit()
     conn.close()
     print("Database initialized successfully.")
@@ -172,19 +183,105 @@ def update_settings(color=None, dark_mode=None):
     conn.commit()
     conn.close()
 
+# Check if user is admin
+def is_admin():
+    return session.get('role') == 'admin'
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+        role = request.form.get('role', 'user').strip()
+        
+        # Validaties
+        if not username or not password:
+            flash('Gebruikersnaam en wachtwoord zijn verplicht!', 'error')
+            return redirect(url_for('register'))
+        if len(password) < 8:
+            flash('Wachtwoord moet minimaal 8 tekens lang zijn!', 'error')
+            return redirect(url_for('register'))
+        if role not in ['user', 'admin']:
+            flash('Ongeldige rol geselecteerd!', 'error')
+            return redirect(url_for('register'))
+        if role == 'admin' and not is_admin():
+            flash('Alleen admins kunnen nieuwe admins registreren!', 'error')
+            return redirect(url_for('register'))
+        
+        # Controleer of gebruikersnaam al bestaat
+        conn = sqlite3.connect('books.db')
+        c = conn.cursor()
+        c.execute('SELECT id FROM users WHERE username = ?', (username,))
+        if c.fetchone():
+            flash('Gebruikersnaam is al in gebruik!', 'error')
+            conn.close()
+            return redirect(url_for('register'))
+        
+        # Hash wachtwoord en sla gebruiker op
+        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        try:
+            c.execute('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', (username, hashed_password, role))
+            conn.commit()
+            flash('Gebruiker succesvol geregistreerd! Log nu in.', 'success')
+            conn.close()
+            return redirect(url_for('login'))
+        except sqlite3.Error as e:
+            flash(f'Fout bij registreren: {str(e)}', 'error')
+            conn.close()
+            return redirect(url_for('register'))
+    
+    return render_template('register.html', is_admin=is_admin())
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+        conn = sqlite3.connect('books.db')
+        c = conn.cursor()
+        c.execute('SELECT id, username, password, role FROM users WHERE username = ?', (username,))
+        user = c.fetchone()
+        conn.close()
+        
+        if user and bcrypt.checkpw(password.encode('utf-8'), user[2].encode('utf-8')):
+            session['user_id'] = user[0]
+            session['username'] = user[1]
+            session['role'] = user[3]
+            flash('Succesvol ingelogd!', 'success')
+            return redirect(url_for('index'))
+        else:
+            flash('Ongeldige gebruikersnaam of wachtwoord!', 'error')
+            return redirect(url_for('login'))
+    
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.pop('user_id', None)
+    session.pop('username', None)
+    session.pop('role', None)
+    flash('Succesvol uitgelogd!', 'success')
+    return redirect(url_for('index'))
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
+    if not session.get('user_id'):
+        return redirect(url_for('login'))
+    
     settings = get_settings()
     conn = sqlite3.connect('books.db')
     c = conn.cursor()
     filters = {}
-    edit_book_data = {}  # Voor het vullen van het formulier bij bewerken
+    edit_book_data = {}
     
     if request.method == 'POST':
+        if not is_admin() and request.form.get('action') in ['add', 'edit']:
+            flash('Alleen admins kunnen boeken toevoegen of bewerken!', 'error')
+            return redirect(url_for('index'))
+        
         action = request.form.get('action', 'search')
         
         if action == 'add':
-            # Boek toevoegen
             data = {
                 'titel': request.form.get('titel', ''),
                 'auteur_voornaam': request.form.get('auteur_voornaam', ''),
@@ -218,7 +315,6 @@ def index():
                     flash(f"Fout bij toevoegen boek: {str(e)}", "error")
         
         elif action == 'edit':
-            # Boek bijwerken
             book_id = request.form.get('book_id', '')
             if not book_id:
                 flash("Geen boek-ID opgegeven!", "error")
@@ -240,7 +336,7 @@ def index():
                     'taal': request.form.get('taal', ''),
                     'gesigneerd': request.form.get('gesigneerd', ''),
                     'gelezen': request.form.get('gelezen', ''),
-                    'added_date': request.form.get('added_date', '')  # Behoud originele toevoegdatum
+                    'added_date': request.form.get('added_date', '')
                 }
                 
                 if not data['titel']:
@@ -254,7 +350,6 @@ def index():
                     except sqlite3.Error as e:
                         flash(f"Fout bij bijwerken boek: {str(e)}", "error")
         
-        # Zoeken
         query = 'SELECT * FROM books'
         params = []
         where_clauses = []
@@ -275,7 +370,6 @@ def index():
             flash(f"Databasefout bij ophalen boeken: {str(e)}", "error")
             books = []
     else:
-        # GET request: toon alle boeken of vul formulier voor bewerken
         book_id = request.args.get('edit_book_id')
         if book_id:
             try:
@@ -319,7 +413,7 @@ def index():
     total_price = df['prijs'].sum() if not df.empty else 0
     total_pages = df['paginas'].sum() if not df.empty else 0
     
-    return render_template('index.html', books=books, total_price=total_price, total_pages=total_pages, filters=filters, settings=settings, edit_book_data=edit_book_data)
+    return render_template('index.html', books=books, total_price=total_price, total_pages=total_pages, filters=filters, settings=settings, edit_book_data=edit_book_data, is_admin=is_admin())
 
 @app.route('/search', methods=['POST'])
 def search():
@@ -382,11 +476,23 @@ def fetch_cover():
 
 @app.route('/edit/<int:book_id>', methods=['GET'])
 def edit_book(book_id):
-    # Redirect naar index met book_id als query parameter
+    if not session.get('user_id'):
+        flash('Log in om een boek te bewerken!', 'error')
+        return redirect(url_for('login'))
+    if not is_admin():
+        flash('Alleen admins kunnen boeken bewerken!', 'error')
+        return redirect(url_for('index'))
     return redirect(url_for('index', edit_book_id=book_id))
 
 @app.route('/delete/<int:book_id>', methods=['POST'])
 def delete_book(book_id):
+    if not session.get('user_id'):
+        flash('Log in om een boek te verwijderen!', 'error')
+        return redirect(url_for('login'))
+    if not is_admin():
+        flash('Alleen admins kunnen boeken verwijderen!', 'error')
+        return redirect(url_for('index'))
+    
     print(f"Delete route called with book_id: {book_id}")
     conn = sqlite3.connect('books.db')
     c = conn.cursor()
@@ -410,6 +516,13 @@ def delete_book(book_id):
 
 @app.route('/upload_csv', methods=['POST'])
 def upload_csv():
+    if not session.get('user_id'):
+        flash('Log in om een CSV te uploaden!', 'error')
+        return redirect(url_for('login'))
+    if not is_admin():
+        flash('Alleen admins kunnen CSV-bestanden uploaden!', 'error')
+        return redirect(url_for('settings'))
+    
     if 'csv_file' not in request.files:
         flash("Geen bestand geselecteerd!", "error")
         return redirect(url_for('settings'))
@@ -431,6 +544,10 @@ def upload_csv():
 
 @app.route('/statistics')
 def statistics():
+    if not session.get('user_id'):
+        flash('Log in om statistieken te bekijken!', 'error')
+        return redirect(url_for('login'))
+    
     settings = get_settings()
     conn = sqlite3.connect('books.db')
     try:
@@ -438,9 +555,9 @@ def statistics():
     except sqlite3.Error as e:
         flash(f"Databasefout bij ophalen statistieken: {str(e)}", "error")
         conn.close()
-        return render_template('statistics.html', charts={}, settings=settings)
+        return render_template('statistics.html', charts={}, settings=settings, is_admin=is_admin())
+    
     conn.close()
-
     charts = {}
     if not df.empty:
         if "genre" in df.columns:
@@ -474,10 +591,17 @@ def statistics():
         flash("Fout: ongeldige grafiekdata!", "error")
         charts = {}
 
-    return render_template('statistics.html', charts=charts, settings=settings)
+    return render_template('statistics.html', charts=charts, settings=settings, is_admin=is_admin())
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
+    if not session.get('user_id'):
+        flash('Log in om instellingen te bekijken!', 'error')
+        return redirect(url_for('login'))
+    if not is_admin():
+        flash('Alleen admins kunnen instellingen wijzigen!', 'error')
+        return render_template('settings.html', settings=get_settings(), is_admin=is_admin())
+    
     settings = get_settings()
     if request.method == 'POST' and 'color' in request.form:
         color = request.form.get('color', settings['color']).strip()
@@ -488,7 +612,8 @@ def settings():
         else:
             flash("Ongeldige kleurcode!", "error")
         return redirect(url_for('settings'))
-    return render_template('settings.html', settings=settings)
+    
+    return render_template('settings.html', settings=settings, is_admin=is_admin())
 
 if __name__ == "__main__":
     import os
