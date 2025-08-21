@@ -1,4 +1,3 @@
-
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
 import sqlite3
 import pandas as pd
@@ -12,10 +11,7 @@ app = Flask(__name__)
 app.secret_key = "your_secret_key"  # Voor flash-berichten en sessiebeheer
 app.config['SESSION_TYPE'] = 'filesystem'
 
-# Definieer het pad naar je CSV-bestand
-CSV_PATH = "D:/prive/Boeken_applicatie/Database_boeken.csv"  # Correct pad naar je CSV-bestand
-
-# Database initialization
+# Database initialization (geen CSV-load meer; alleen tabellen creëren)
 def init_db():
     print("Initializing database...")  # Debug log
     conn = sqlite3.connect('books.db')
@@ -50,41 +46,27 @@ def init_db():
     conn.close()
     print("Database initialized successfully.")  # Debug log
 
-# Load CSV into SQLite (for initial data migration or uploaded files)
+# Load CSV into SQLite (ALLEEN voor geüploade bestanden; lokale paden verwijderd)
 def load_csv_to_db(csv_source, overwrite=False):
     try:
-        # Als csv_source een bestandspad is (voor initiële import)
-        if isinstance(csv_source, str):
-            if not os.path.exists(csv_source):
-                return False, f"Fout: CSV-bestand niet gevonden op {csv_source}"
-            # Probeer meerdere encodings
-            encodings = ['utf-8-sig', 'iso-8859-1', 'windows-1252']
-            df = None
-            for encoding in encodings:
-                try:
-                    df = pd.read_csv(csv_source, sep=None, engine="python", encoding=encoding)
-                    print(f"Succes: CSV gelezen met encoding {encoding}")
-                    break
-                except UnicodeDecodeError:
-                    print(f"Mislukt: Encoding {encoding} faalde")
-                    continue
-            if df is None:
-                raise ValueError("Geen geschikte encoding gevonden voor het CSV-bestand")
-        else:
-            # Als csv_source een geüpload bestand is
-            encodings = ['utf-8-sig', 'iso-8859-1', 'windows-1252']
-            df = None
-            for encoding in encodings:
-                try:
-                    csv_source.seek(0)  # Reset bestandspositie
-                    df = pd.read_csv(StringIO(csv_source.read().decode(encoding)), sep=None, engine="python")
-                    print(f"Succes: CSV gelezen met encoding {encoding}")
-                    break
-                except UnicodeDecodeError:
-                    print(f"Mislukt: Encoding {encoding} faalde")
-                    continue
-            if df is None:
-                raise ValueError("Geen geschikte encoding gevonden voor het geüploade CSV-bestand")
+        # Alleen ondersteuning voor geüploade bestanden (geen lokale paden meer)
+        if not hasattr(csv_source, 'read'):
+            raise ValueError("Alleen geüploade CSV-bestanden worden ondersteund.")
+        
+        # Probeer meerdere encodings
+        encodings = ['utf-8-sig', 'iso-8859-1', 'windows-1252']
+        df = None
+        for encoding in encodings:
+            try:
+                csv_source.seek(0)  # Reset bestandspositie
+                df = pd.read_csv(StringIO(csv_source.read().decode(encoding)), sep=None, engine="python")
+                print(f"Succes: CSV gelezen met encoding {encoding}")
+                break
+            except UnicodeDecodeError:
+                print(f"Mislukt: Encoding {encoding} faalde")
+                continue
+        if df is None:
+            raise ValueError("Geen geschikte encoding gevonden voor het geüploade CSV-bestand")
 
         print(f"Gelezen kolomnamen (voor verwerking): {list(df.columns)}")  # Log de ruwe kolomnamen
         
@@ -187,28 +169,21 @@ def load_csv_to_db(csv_source, overwrite=False):
             conn.close()
             return True, f"Succes: {len(df)} boeken geïmporteerd"
         else:
-            # Alleen nieuwe boeken toevoegen (controleer op duplicaten op titel en isbn)
-            existing_books = pd.read_sql_query('SELECT titel, isbn FROM books', conn)
-            new_books = df[~df[['titel', 'isbn']].apply(tuple, axis=1).isin(
-                existing_books[['titel', 'isbn']].apply(tuple, axis=1))]
-            print(f"Aantal nieuwe boeken: {len(new_books)}")
-            if not new_books.empty:
-                new_books.to_sql('books', conn, if_exists='append', index=False)
-                print(f"Succes: {len(new_books)} nieuwe boeken toegevoegd")
-                conn.commit()
-                conn.close()
-                return True, f"Succes: {len(new_books)} nieuwe boeken toegevoegd"
-            else:
-                print("Geen nieuwe boeken om toe te voegen")
-                conn.close()
-                return True, "Geen nieuwe boeken om toe te voegen"
+            # Alleen nieuwe boeken toevoegen (bestaande logica behouden)
+            for _, row in df.iterrows():
+                # Voeg toe als niet duplicate (op titel en isbn)
+                c.execute('''SELECT COUNT(*) FROM books WHERE titel = ? AND isbn = ?''', (row['titel'], row['isbn']))
+                if c.fetchone()[0] == 0:
+                    c.execute('''INSERT INTO books (titel, auteur_voornaam, auteur_achternaam, genre, prijs, paginas, bindwijze, edition, isbn, reeks_nr, uitgeverij, serie, staat, taal, gesigneerd, gelezen, added_date)
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', tuple(row))
+            conn.commit()
+            conn.close()
+            return True, f"Succes: Nieuwe boeken toegevoegd uit CSV"
     except Exception as e:
-        print(f"Fout bij importeren CSV: {str(e)}")
-        return False, f"Fout bij importeren CSV: {str(e)}"
+        return False, f"Fout bij importeren: {str(e)}"
 
 # Initialize database and load CSV
 init_db()
-import_status = load_csv_to_db(CSV_PATH)  # Roep de functie aan bij opstarten
 
 # Get settings
 def get_settings():
