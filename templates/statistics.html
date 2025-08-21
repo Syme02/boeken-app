@@ -1,149 +1,134 @@
-```html
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Statistieken</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-    <style>
-        body {
-            background-color: {% if settings.dark_mode %}#1e1e1e{% else %}#f8f9fa{% endif %};
-            color: {% if settings.dark_mode %}#ffffff{% else %}#000000{% endif %};
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-        .content {
-            width: 100%;
-            flex: 1;
-            padding: 1rem;
-            box-sizing: border-box;
-        }
-        .tabs a {
-            color: {% if settings.dark_mode %}#ffffff{% else %}#000000{% endif %};
-            padding: 0.5rem 1rem;
-            text-decoration: none;
-            border-radius: 0.25rem;
-        }
-        .tabs a:hover {
-            background-color: {{ settings.color }};
-            color: #ffffff;
-        }
-        .tabs a.active {
-            background-color: {{ settings.color }};
-            color: #ffffff;
-        }
-        .flash-message {
-            padding: 1rem;
-            margin-bottom: 1rem;
-            border-radius: 0.25rem;
-        }
-        .flash-success { background-color: #d4edda; color: #155724; }
-        .flash-error { background-color: #f8d7da; color: #721c24; }
-        .flash-info { background-color: #d1ecf1; color: #0c5460; }
-        canvas {
-            background-color: {% if settings.dark_mode %}#2e2e2e{% else %}#ffffff{% endif %};
-            max-width: 100%;
-            height: auto;
-        }
-        select {
-            padding: 0.5rem;
-            border-radius: 0.25rem;
-            background-color: {% if settings.dark_mode %}#2e2e2e{% else %}#ffffff{% endif %};
-            color: {% if settings.dark_mode %}#ffffff{% else %}#000000{% endif %};
-            border: 1px solid {{ settings.color }};
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Statistieken</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+  <style>
+    :root {
+      --primary-color: {{ settings.color }};
+      --background-color: {{ '#1f2937' if settings.dark_mode else '#ffffff' }};
+      --text-color: {{ '#f9fafb' if settings.dark_mode else '#111827' }};
+      --card-bg: {{ '#111827' if settings.dark_mode else '#ffffff' }};
+      --border-color: {{ '#374151' if settings.dark_mode else '#e5e7eb' }};
+      --muted: {{ '#9ca3af' if settings.dark_mode else '#6b7280' }};
+    }
+    body { background-color: var(--background-color); color: var(--text-color); }
+    .card { background-color: var(--card-bg); border: 1px solid var(--border-color); }
+    .btn-primary { background-color: var(--primary-color); color: #fff; }
+    .btn-primary:hover { filter: brightness(0.95); }
+    .link-primary { color: var(--primary-color); }
+    .link-primary:hover { text-decoration: underline; }
+    select { border: 1px solid var(--border-color); background-color: var(--background-color); color: var(--text-color); }
+    canvas { background-color: var(--card-bg); border-radius: 0.75rem; }
+  </style>
 </head>
-<body>
-    <div class="content">
-        <div class="tabs flex space-x-4 mb-4">
-            <a href="{{ url_for('index') }}">Boeken Zoeken</a>
-            <a href="{{ url_for('statistics') }}" class="active">Statistieken</a>
-            <a href="{{ url_for('settings') }}">Instellingen</a>
+<body class="min-h-screen flex flex-col">
+  <div class="container mx-auto max-w-6xl p-4 flex-1 flex flex-col">
+    <!-- Header / Tabs -->
+    <div class="mb-6">
+      <h1 class="text-3xl font-extrabold text-center mb-4">Statistieken</h1>
+      <nav class="flex space-x-2 border-b" style="border-color: var(--border-color);">
+        <a href="{{ url_for('index') }}" class="px-4 py-2 rounded-t-lg hover:underline" style="color: var(--text-color);">Boeken Zoeken</a>
+        <a href="{{ url_for('statistics') }}" class="px-4 py-2 rounded-t-lg font-medium shadow-sm card" style="border-bottom: none; color: var(--primary-color);">Statistieken</a>
+        <a href="{{ url_for('settings') }}" class="px-4 py-2 rounded-t-lg hover:underline" style="color: var(--text-color);">Instellingen</a>
+      </nav>
+    </div>
+
+    <!-- Content Card -->
+    <div class="card rounded-xl shadow-sm p-6 flex-1">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="space-y-2 mb-4">
+            {% for category, message in messages %}
+              <div class="p-3 rounded-lg text-white shadow-md"
+                   style="background-color: {% if category=='success' %}#16a34a{% elif category=='error' %}#dc2626{% else %}#2563eb{% endif %};">
+                {{ message }}
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <h2 class="text-2xl font-bold mb-4">Statistieken</h2>
+
+      {% if charts %}
+        <div class="mb-6">
+          <label for="chart-select" class="block text-sm font-medium mb-2">Kies een grafiek:</label>
+          <select id="chart-select" onchange="showChart(this.value)" class="rounded px-3 py-2 w-full md:w-1/3">
+            <option value="">-- Selecteer een grafiek --</option>
+            {% for chart_name in charts.keys() %}
+              <option value="{{ chart_name }}">{{ chart_name.replace('_', ' ').title() }}</option>
+            {% endfor %}
+          </select>
         </div>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="flash-message flash-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-
-        <h1 class="text-2xl font-bold mb-4">Statistieken</h1>
-        {% if charts %}
-            <div class="mb-4">
-                <label for="chart-select" class="mr-2">Kies een grafiek:</label>
-                <select id="chart-select" onchange="showChart(this.value)">
-                    <option value="">-- Selecteer een grafiek --</option>
-                    {% for chart_name in charts.keys() %}
-                        <option value="{{ chart_name }}">{{ chart_name.replace('_', ' ').title() }}</option>
-                    {% endfor %}
-                </select>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {% for chart_name, chart_data in charts.items() %}
+            <div id="{{ chart_name }}-container" class="chart-container card p-4 rounded-xl shadow-sm" style="display: none;">
+              <canvas id="{{ chart_name }}-chart"></canvas>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {% for chart_name, chart_data in charts.items() %}
-                    <div id="{{ chart_name }}-container" class="chart-container" style="display: none;">
-                        <canvas id="{{ chart_name }}-chart"></canvas>
-                    </div>
-                {% endfor %}
-            </div>
-        {% else %}
-            <div class="flash-message flash-info">Geen statistieken beschikbaar. Voeg boeken toe om grafieken te zien.</div>
-        {% endif %}
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="p-4 rounded-lg shadow-md" style="background-color: var(--border-color); color: var(--text-color);">
+          Geen statistieken beschikbaar. Voeg boeken toe om grafieken te zien.
+        </div>
+      {% endif %}
     </div>
-    <script>
-        const chartsData = {{ charts | tojson }};
-        const chartInstances = {};
 
-        // Initialize all charts but keep them hidden
-        {% for chart_name, chart_data in charts.items() %}
-            chartInstances['{{ chart_name }}'] = new Chart(document.getElementById('{{ chart_name }}-chart').getContext('2d'), {
-                type: '{{ 'pie' if chart_name in ['genre', 'gelezen', 'taal'] else 'bar' }}',
-                data: {
-                    labels: {{ chart_data.labels | tojson }},
-                    datasets: [{
-                        label: '{{ chart_name.replace('_', ' ').title() }}',
-                        data: {{ chart_data.data | tojson }},
-                        backgroundColor: [
-                            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
-                            '#FF9F40', '#FF5733', '#C70039', '#900C3F', '#581845'
-                        ],
-                        borderColor: '{{ settings.color }}',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: { position: 'top' },
-                        title: {
-                            display: true,
-                            text: '{{ chart_name.replace('_', ' ').title() }} Verdeling'
-                        }
-                    }
-                }
-            });
-        {% endfor %}
+    <p class="text-center mt-6 italic" style="color: var(--muted);">Versie 1.4.7</p>
+  </div>
 
-        // Function to show the selected chart and hide others
-        function showChart(chartName) {
-            const containers = document.querySelectorAll('.chart-container');
-            containers.forEach(container => {
-                container.style.display = container.id === chartName + '-container' ? 'block' : 'none';
-            });
+  <script>
+    function varGet(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+    const chartInstances = {};
+
+    {% for chart_name, chart_data in charts.items() %}
+      chartInstances['{{ chart_name }}'] = new Chart(document.getElementById('{{ chart_name }}-chart').getContext('2d'), {
+        type: '{{ 'pie' if chart_name in ['genre', 'gelezen', 'taal'] else 'bar' }}',
+        data: {
+          labels: {{ chart_data.labels | tojson }},
+          datasets: [{
+            label: '{{ chart_name.replace('_', ' ').title() }}',
+            data: {{ chart_data.data | tojson }},
+            backgroundColor: [
+              '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+              '#FF9F40', '#FF5733', '#C70039', '#900C3F', '#581845'
+            ],
+            borderColor: '{{ settings.color }}',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { labels: { color: varGet('--text-color') } },
+            title: { display: true, text: '{{ chart_name.replace('_', ' ').title() }} Verdeling', color: varGet('--text-color') }
+          },
+          scales: {
+            x: { ticks: { color: varGet('--text-color') }, grid: { color: varGet('--border-color') } },
+            y: { ticks: { color: varGet('--text-color') }, grid: { color: varGet('--border-color') } }
+          }
         }
+      });
+    {% endfor %}
 
-        // Show the first chart by default if any
-        const select = document.getElementById('chart-select');
-        if (select.options.length > 1) {
-            select.value = select.options[1].value;
-            showChart(select.value);
-        }
-    </script>
+    function showChart(chartName) {
+      const containers = document.querySelectorAll('.chart-container');
+      containers.forEach(container => {
+        container.style.display = container.id === chartName + '-container' ? 'block' : 'none';
+      });
+    }
+
+    // Standaard de eerste grafiek tonen
+    const select = document.getElementById('chart-select');
+    if (select && select.options.length > 1) {
+      select.value = select.options[1].value;
+      showChart(select.value);
+    }
+  </script>
 </body>
 </html>
-```
