@@ -26,24 +26,25 @@
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
-  <header class="bg-white dark:bg-gray-800 shadow">
-    <div class="container mx-auto max-w-7xl p-4 flex justify-between items-center">
-      <h1 class="text-2xl font-bold">Boeken Applicatie</h1>
-      <nav class="flex space-x-4 items-center">
-        <a href="{{ url_for('index') }}" class="px-4 py-2 rounded-md font-medium link-primary">Boeken Zoeken</a>
-        <a href="{{ url_for('statistics') }}" class="px-4 py-2 rounded-md font-medium link-primary">Grafieken</a>
-        {% if is_admin %}
-          <a href="{{ url_for('settings') }}" class="px-4 py-2 rounded-md font-medium link-primary">Instellingen</a>
-        {% endif %}
-        {% if session.username %}
-          <span class="text-sm">Ingelogd als: {{ session.username }} ({{ session.role }})</span>
-          <a href="{{ url_for('logout') }}" class="px-4 py-2 rounded-md btn-primary">Uitloggen</a>
-        {% else %}
-          <a href="{{ url_for('login') }}" class="px-4 py-2 rounded-md btn-primary">Inloggen</a>
-        {% endif %}
-      </nav>
-    </div>
-  </header>
+<header class="bg-white dark:bg-gray-800 shadow">
+  <div class="container mx-auto max-w-7xl p-4 flex justify-between items-center">
+    <h1 class="text-2xl font-bold">Boeken Applicatie</h1>
+    <nav class="flex space-x-4 items-center">
+      <a href="{{ url_for('index') }}" class="px-4 py-2 rounded-md font-medium link-primary">Boeken Zoeken</a>
+      <a href="{{ url_for('statistics') }}" class="px-4 py-2 rounded-md font-medium link-primary">Grafieken</a>
+      {% if is_admin %}
+        <a href="{{ url_for('settings') }}" class="px-4 py-2 rounded-md font-medium link-primary">Instellingen</a>
+      {% endif %}
+      {% if session.username %}
+        <span class="text-sm">Ingelogd als: {{ session.username }} ({{ session.role }})</span>
+        <a href="{{ url_for('logout') }}" class="px-4 py-2 rounded-md btn-primary">Uitloggen</a>
+      {% else %}
+        <a href="{{ url_for('login') }}" class="px-4 py-2 rounded-md btn-primary">Inloggen</a>
+        <a href="{{ url_for('register') }}" class="px-4 py-2 rounded-md btn-primary">Registreren</a>
+      {% endif %}
+    </nav>
+  </div>
+</header>
 
   <div class="container mx-auto max-w-7xl p-4 flex-1">
     <!-- Flash messages -->
