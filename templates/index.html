@@ -26,30 +26,41 @@
     .btn-primary:hover { filter: brightness(0.95); }
     .link-primary { color: var(--primary-color); }
     .link-primary:hover { text-decoration: underline; }
+    .logo {
+        width: 40px;
+        height: 40px;
+        object-fit: contain;
+        background-color: var(--muted); /* Fallback-kleur als het logo niet laadt */
+        }
     thead th { white-space: nowrap; }
     thead { position: sticky; top: 0; z-index: 10; }
   </style>
 </head>
 <body class="min-h-screen flex flex-col">
-<header class="bg-white dark:bg-gray-800 shadow">
-  <div class="container mx-auto max-w-7xl p-4 flex justify-between items-center">
-    <h1 class="text-2xl font-bold">Boeken Applicatie</h1>
-    <nav class="flex space-x-4 items-center">
-      <a href="{{ url_for('index') }}" class="px-4 py-2 rounded-md font-medium link-primary">Boeken Zoeken</a>
-      <a href="{{ url_for('statistics') }}" class="px-4 py-2 rounded-md font-medium link-primary">Grafieken</a>
-      {% if is_admin %}
-        <a href="{{ url_for('settings') }}" class="px-4 py-2 rounded-md font-medium link-primary">Instellingen</a>
-      {% endif %}
-      {% if session.username %}
-        <span class="text-sm">Ingelogd als: {{ session.username }} ({{ session.role }})</span>
-        <a href="{{ url_for('logout') }}" class="px-4 py-2 rounded-md btn-primary">Uitloggen</a>
-      {% else %}
-        <a href="{{ url_for('login') }}" class="px-4 py-2 rounded-md btn-primary">Inloggen</a>
-        <a href="{{ url_for('register') }}" class="px-4 py-2 rounded-md btn-primary">Registreren</a>
-      {% endif %}
-    </nav>
-  </div>
-</header>
+  <header class="shadow" style="border-bottom: 1px solid var(--border-color);">
+    <div class="container mx-auto max-w-7xl p-4 flex justify-between items-center">
+      <div class="flex items-center space-x-3">
+        <a href="{{ url_for('index') }}">
+          <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Boeken Applicatie Logo" class="logo" />
+        </a>
+        <a href="{{ url_for('index') }}" class="text-2xl font-bold link-primary">Boeken Applicatie</a>
+      </div>
+      <nav class="flex space-x-4 items-center">
+        <a href="{{ url_for('index') }}" class="px-4 py-2 rounded-md font-medium link-primary">Boeken Zoeken</a>
+        <a href="{{ url_for('statistics') }}" class="px-4 py-2 rounded-md font-medium link-primary">Grafieken</a>
+        {% if is_admin %}
+          <a href="{{ url_for('settings') }}" class="px-4 py-2 rounded-md font-medium link-primary">Instellingen</a>
+        {% endif %}
+        {% if session.username %}
+          <span class="text-sm">Ingelogd als: {{ session.username }} ({{ session.role }})</span>
+          <a href="{{ url_for('logout') }}" class="px-4 py-2 rounded-md btn-primary">Uitloggen</a>
+        {% else %}
+          <a href="{{ url_for('login') }}" class="px-4 py-2 rounded-md btn-primary">Inloggen</a>
+          <a href="{{ url_for('register') }}" class="px-4 py-2 rounded-md btn-primary">Registreren</a>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
 
   <div class="container mx-auto max-w-7xl p-4 flex-1 flex flex-col">
     <!-- Flash messages -->
