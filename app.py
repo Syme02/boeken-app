@@ -274,11 +274,6 @@ def index():
     total_price = df['prijs'].sum() if not df.empty else 0
     total_pages = df['paginas'].sum() if not df.empty else 0
 
-    # Toon de importstatus op de indexpagina
-    if import_status[0]:
-        flash(import_status[1], "success" if "Succes" in import_status[1] else "info")
-    else:
-        flash(import_status[1], "error")
 
     return render_template('index.html', books=books, total_price=total_price, total_pages=total_pages, filters=filters, settings=settings)
 
