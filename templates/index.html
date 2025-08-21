@@ -1,34 +1,60 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Boeken Applicatie</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+  <style>
+    :root {
+      --primary-color: {{ settings.color }};
+      --background-color: {{ '#1f2937' if settings.dark_mode else '#ffffff' }}; /* gray-800 vs white */
+      --text-color: {{ '#f9fafb' if settings.dark_mode else '#111827' }};       /* gray-50 vs gray-900 */
+      --card-bg: {{ '#111827' if settings.dark_mode else '#ffffff' }};           /* gray-900 vs white */
+      --row-odd: {{ '#0f172a' if settings.dark_mode else '#ffffff' }};           /* slate-950 vs white */
+      --row-even: {{ '#111827' if settings.dark_mode else '#f9fafb' }};          /* gray-900 vs gray-50 */
+      --muted: {{ '#9ca3af' if settings.dark_mode else '#6b7280' }};             /* gray-400 vs gray-500 */
+      --border-color: {{ '#374151' if settings.dark_mode else '#e5e7eb' }};      /* gray-700 vs gray-200 */
+      --focus-ring: {{ settings.color }};
+    }
+    html, body { height: 100%; }
+    body { background-color: var(--background-color); color: var(--text-color); }
+    .card { background-color: var(--card-bg); border: 1px solid var(--border-color); }
+    .input-base { border: 1px solid var(--border-color); background-color: var(--background-color); color: var(--text-color); }
+    .input-base:focus { outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0); border-color: var(--focus-ring); }
+    .btn-primary { background-color: var(--primary-color); color: #fff; }
+    .btn-primary:hover { filter: brightness(0.95); }
+    .link-primary { color: var(--primary-color); }
+    .link-primary:hover { text-decoration: underline; }
+    thead th { white-space: nowrap; }
+    thead { position: sticky; top: 0; z-index: 10; }
+  </style>
 </head>
-<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
-  <!-- Container -->
-  <div class="container mx-auto max-w-7xl p-4 flex flex-col flex-1">
-    <!-- Titel -->
-    <h1 class="text-3xl font-extrabold text-center text-gray-900 mb-6">Boeken Applicatie</h1>
-
-    <!-- Tabs -->
-    <div class="flex space-x-2 mb-6 border-b">
-      <a href="{{ url_for('index') }}" class="px-4 py-2 rounded-t-lg bg-white border border-b-0 shadow-sm text-blue-600 font-medium">Boeken Zoeken</a>
-      <a href="{{ url_for('statistics') }}" class="px-4 py-2 rounded-t-lg text-gray-600 hover:text-blue-600">Grafieken</a>
-      <a href="{{ url_for('settings') }}" class="px-4 py-2 rounded-t-lg text-gray-600 hover:text-blue-600">Instellingen</a>
+<body class="min-h-screen flex flex-col">
+  <div class="container mx-auto max-w-7xl p-4 flex-1 flex flex-col">
+    <!-- Header / Tabs -->
+    <div class="mb-6">
+      <h1 class="text-3xl font-extrabold text-center mb-4">Boeken Applicatie</h1>
+      <nav class="flex space-x-2 border-b" style="border-color: var(--border-color);">
+        <a href="{{ url_for('index') }}" class="px-4 py-2 rounded-t-lg font-medium shadow-sm card" style="border-bottom: none; color: var(--primary-color);">Boeken Zoeken</a>
+        <a href="{{ url_for('statistics') }}" class="px-4 py-2 rounded-t-lg hover:underline" style="color: var(--text-color);">Grafieken</a>
+        <a href="{{ url_for('settings') }}" class="px-4 py-2 rounded-t-lg hover:underline" style="color: var(--text-color);">Instellingen</a>
+      </nav>
     </div>
 
-    <!-- Content -->
-    <div class="flex-1 bg-white rounded-xl shadow-sm p-6">
+    <!-- Content Card -->
+    <div class="card rounded-xl shadow-sm p-6 flex-1">
+      <!-- Flash messages -->
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-          {% for category, message in messages %}
-            <div class="mb-4 p-3 rounded-lg text-white shadow-md
-              {% if category=='success' %} bg-green-500 {% elif category=='error' %} bg-red-500 {% else %} bg-blue-500 {% endif %}">
-              {{ message }}
-            </div>
-          {% endfor %}
+          <div class="space-y-2 mb-4">
+            {% for category, message in messages %}
+              <div class="p-3 rounded-lg text-white shadow-md"
+                   style="background-color: {% if category=='success' %}#16a34a{% elif category=='error' %}#dc2626{% else %}#2563eb{% endif %};">
+                {{ message }}
+              </div>
+            {% endfor %}
+          </div>
         {% endif %}
       {% endwith %}
 
@@ -39,18 +65,18 @@
       <div id="addBookForm" class="hidden mb-6">
         <h3 class="text-lg font-semibold mb-3">Boek Toevoegen</h3>
         <form id="addBookFormSubmit" method="POST" class="space-y-4">
-          <input type="hidden" name="action" value="add_book">
+          <input type="hidden" name="action" value="add_book" />
           <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {% for field in ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'prijs', 'paginas', 'bindwijze', 'edition', 'isbn', 'reeks_nr', 'uitgeverij', 'serie', 'staat', 'taal', 'gesigneerd', 'gelezen'] %}
               <div>
-                <label for="add_{{ field }}" class="block text-sm font-medium text-gray-700">{{ field.replace('_', ' ').title() }}</label>
-                <input type="text" id="add_{{ field }}" name="add_{{ field }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                <label for="add_{{ field }}" class="block text-sm font-medium">{{ field.replace('_', ' ').title() }}</label>
+                <input type="text" id="add_{{ field }}" name="add_{{ field }}" class="mt-1 block w-full rounded-md shadow-sm input-base px-3 py-2" />
               </div>
             {% endfor %}
           </div>
-          <div class="flex space-x-3">
-            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Toevoegen</button>
-            <button type="button" id="cancelAddBook" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600">Annuleren</button>
+          <div class="flex flex-wrap gap-3">
+            <button type="submit" class="px-4 py-2 rounded-md btn-primary">Toevoegen</button>
+            <button type="button" id="cancelAddBook" class="px-4 py-2 rounded-md bg-gray-500 text-white hover:bg-gray-600">Annuleren</button>
           </div>
         </form>
       </div>
@@ -58,7 +84,7 @@
       <!-- Boekkaft -->
       <div id="coverSection" class="hidden mb-6">
         <h3 class="text-lg font-semibold mb-2">Boekkaft</h3>
-        <img id="coverImage" src="" alt="Boekkaft" class="max-w-xs rounded shadow-md">
+        <img id="coverImage" src="" alt="Boekkaft" class="max-w-xs rounded shadow-md" />
       </div>
 
       <!-- Zoekformulier -->
@@ -66,25 +92,29 @@
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {% for field in ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'uitgeverij', 'isbn', 'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition'] %}
             <div>
-              <label for="{{ field }}" class="block text-sm font-medium text-gray-700">{{ field.replace('_', ' ').title() }}</label>
-              <input type="text" id="{{ field }}" name="{{ field }}" value="{{ filters[field] if field in filters else '' }}" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500">
+              <label for="{{ field }}" class="block text-sm font-medium">{{ field.replace('_', ' ').title() }}</label>
+              <input type="text" id="{{ field }}" name="{{ field }}" value="{{ filters[field] if field in filters else '' }}" class="mt-1 block w-full rounded-md shadow-sm input-base px-3 py-2" />
             </div>
           {% endfor %}
         </div>
-        <div class="flex space-x-3 mt-4">
-          <button type="submit" name="action" value="search" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Zoeken</button>
-          <button type="button" id="addBookButton" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">Boek Toevoegen</button>
+        <div class="flex flex-wrap gap-3 mt-4">
+          <button type="submit" name="action" value="search" class="px-4 py-2 rounded-md btn-primary">Zoeken</button>
+          <button type="button" id="addBookButton" class="px-4 py-2 rounded-md bg-green-600 text-white hover:bg-green-700">Boek Toevoegen</button>
         </div>
       </form>
 
       <!-- Overzicht -->
-      <h2 class="text-2xl font-bold mb-4">Boeken</h2>
-      <p class="mb-4 text-sm text-gray-600">Totaal aantal boeken: <span id="totalBooks">{{ books | length }}</span> | Totaalprijs: €{{ total_price | round(2) }} | Totaal aantal pagina's: {{ total_pages }}</p>
+      <h2 class="text-2xl font-bold mb-2">Boeken</h2>
+      <p class="mb-4 text-sm" style="color: var(--muted);">
+        Totaal aantal boeken: <span id="totalBooks">{{ books | length }}</span>
+        | Totaalprijs: €<span id="totalPrice">{{ total_price | round(2) }}</span>
+        | Totaal aantal pagina's: <span id="totalPages">{{ total_pages }}</span>
+      </p>
 
       <!-- Tabel -->
-      <div class="overflow-x-auto border rounded-lg shadow-sm">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-blue-600 text-white sticky top-0">
+      <div class="overflow-x-auto rounded-lg shadow-sm border" style="border-color: var(--border-color);">
+        <table class="min-w-full divide-y" style="border-color: var(--border-color);">
+          <thead style="background-color: var(--primary-color); color: #ffffff;">
             <tr>
               <th class="px-3 py-2 text-left text-sm font-semibold">Nr</th>
               <th class="px-3 py-2 text-left text-sm font-semibold">Titel</th>
@@ -105,9 +135,9 @@
               <th class="px-3 py-2 text-left text-sm font-semibold">Acties</th>
             </tr>
           </thead>
-          <tbody id="booksTable" class="divide-y divide-gray-100">
+          <tbody id="booksTable" class="divide-y" style="border-color: var(--border-color);">
             {% for book in books %}
-              <tr class="{{ 'bg-gray-100' if loop.index % 2 == 0 else 'bg-white' }}">
+              <tr style="background-color: {{ 'var(--row-even)' if loop.index % 2 == 0 else 'var(--row-odd)' }};">
                 <td class="px-3 py-2 text-sm">{{ loop.index }}</td>
                 <td class="px-3 py-2 text-sm">{{ book[1] }}</td>
                 <td class="px-3 py-2 text-sm">{{ book[2] }} {{ book[3] }}</td>
@@ -125,7 +155,7 @@
                 <td class="px-3 py-2 text-sm">{{ book[15] }}</td>
                 <td class="px-3 py-2 text-sm">{{ book[16] }}</td>
                 <td class="px-3 py-2 text-sm">
-                  <a href="{{ url_for('edit_book', book_id=book[0]) }}" class="text-blue-600 hover:underline">Bewerken</a>
+                  <a href="{{ url_for('edit_book', book_id=book[0]) }}" class="link-primary">Bewerken</a>
                 </td>
               </tr>
             {% endfor %}
@@ -134,10 +164,9 @@
       </div>
     </div>
 
-    <p class="text-center mt-6 text-gray-500 italic">Versie 1.4.7</p>
+    <p class="text-center mt-6 italic" style="color: var(--muted);">Versie 1.4.7</p>
   </div>
 
-  <!-- Scripts (onveranderd, alleen verplaatst naar einde) -->
   <script>
     const searchForm = document.getElementById('searchForm');
     const inputs = searchForm.querySelectorAll('input');
@@ -148,69 +177,92 @@
     const coverSection = document.getElementById('coverSection');
     const coverImage = document.getElementById('coverImage');
     const totalBooks = document.getElementById('totalBooks');
-    let debounceTimeout;
-    let coverDebounceTimeout;
+    const totalPriceEl = document.getElementById('totalPrice');
+    const totalPagesEl = document.getElementById('totalPages');
+    let debounceTimeout; let coverDebounceTimeout;
 
+    // Toggle add form
     addBookButton.addEventListener('click', () => addBookForm.classList.toggle('hidden'));
     cancelAddBook.addEventListener('click', () => { addBookForm.classList.add('hidden'); addBookFormSubmit.reset(); });
 
     function showFlashMessage(message, category) {
-      const flashContainer = document.querySelector('.flash-container') || document.createElement('div');
-      flashContainer.className = 'flash-container';
+      const flashContainer = document.querySelector('.flash-container') || (() => { const el=document.createElement('div'); el.className='flash-container space-y-2 mb-4'; searchForm.insertAdjacentElement('beforebegin', el); return el; })();
       const flashMessage = document.createElement('div');
-      flashMessage.className = `mb-4 p-3 rounded-lg text-white shadow-md ${category==='success'?'bg-green-500':category==='error'?'bg-red-500':'bg-blue-500'}`;
-      flashMessage.textContent = message;
-      flashContainer.appendChild(flashMessage);
-      searchForm.insertAdjacentElement('beforebegin', flashContainer);
+      flashMessage.className = `p-3 rounded-lg text-white shadow-md ${category==='success'?'bg-green-600':category==='error'?'bg-red-600':'bg-blue-600'}`;
+      flashMessage.textContent = message; flashContainer.appendChild(flashMessage);
       setTimeout(() => flashMessage.remove(), 5000);
     }
 
-    function fetchCover(title, isbn) {
-      if (!title && !isbn) { coverSection.classList.add('hidden'); return; }
-      fetch('/fetch_cover', { method:'POST', body:new URLSearchParams({ title, isbn }) })
-      .then(r=>r.json()).then(data=>{
-        showFlashMessage(data.message, data.category);
-        if (data.cover_url) { coverImage.src = data.cover_url; coverSection.classList.remove('hidden'); }
-        else coverSection.classList.add('hidden');
-      }).catch(()=> showFlashMessage('Fout bij ophalen boekkaft.','error'));
+    function fetchCover(titel, isbn) {
+      if (!titel && !isbn) { coverSection.classList.add('hidden'); return; }
+      const body = new URLSearchParams({ titel: titel || '', isbn: isbn || '' });
+      fetch('/fetch_cover', { method:'POST', body })
+        .then(r=>r.json())
+        .then(data=>{
+          showFlashMessage(data.message, data.category);
+          if (data.cover_url) { coverImage.src = data.cover_url; coverSection.classList.remove('hidden'); }
+          else { coverSection.classList.add('hidden'); }
+        })
+        .catch(()=> showFlashMessage('Fout bij ophalen boekkaft.','error'));
     }
+
+    function formatCurrency(value){ try{ const v=Number(value)||0; return v.toFixed(2); }catch{ return '0.00'; } }
 
     function updateBooks() {
-      const formData={}; inputs.forEach(input=>{ if(input.value.trim()) formData[input.name]=input.value.trim(); });
+      const formData = {}; inputs.forEach(input => { const v=input.value.trim(); if(v) formData[input.name]=v; });
       fetch('/search',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(formData)})
-      .then(r=>r.json()).then(books=>{
-        const tbody=document.getElementById('booksTable'); tbody.innerHTML='';
-        books.forEach((book,i)=>{
-          const tr=document.createElement('tr');
-          tr.className=i%2===0?'bg-gray-100':'bg-white';
-          tr.innerHTML=`<td class='px-3 py-2 text-sm'>${i+1}</td>
-            <td class='px-3 py-2 text-sm'>${book.titel}</td>
-            <td class='px-3 py-2 text-sm'>${book.auteur_voornaam} ${book.auteur_achternaam}</td>
-            <td class='px-3 py-2 text-sm'>${book.genre}</td>
-            <td class='px-3 py-2 text-sm'>${book.prijs.toFixed(2)}</td>
-            <td class='px-3 py-2 text-sm'>${book.paginas}</td>
-            <td class='px-3 py-2 text-sm'>${book.bindwijze}</td>
-            <td class='px-3 py-2 text-sm'>${book.edition}</td>
-            <td class='px-3 py-2 text-sm'>${book.isbn}</td>
-            <td class='px-3 py-2 text-sm'>${book.reeks_nr}</td>
-            <td class='px-3 py-2 text-sm'>${book.uitgeverij}</td>
-            <td class='px-3 py-2 text-sm'>${book.serie}</td>
-            <td class='px-3 py-2 text-sm'>${book.staat}</td>
-            <td class='px-3 py-2 text-sm'>${book.taal}</td>
-            <td class='px-3 py-2 text-sm'>${book.gesigneerd}</td>
-            <td class='px-3 py-2 text-sm'>${book.gelezen}</td>
-            <td class='px-3 py-2 text-sm'><a href='/edit/${book.id}' class='text-blue-600 hover:underline'>Bewerken</a></td>`;
-          tbody.appendChild(tr);
-        });
-        totalBooks.textContent=books.length;
-        if(books.length===1){ clearTimeout(coverDebounceTimeout); coverDebounceTimeout=setTimeout(()=>fetchCover(books[0].titel,books[0].isbn),500);} else coverSection.classList.add('hidden');
-      }).catch(()=>showFlashMessage('Fout bij zoeken.','error'));
+        .then(r=>r.json())
+        .then(books=>{
+          const tbody=document.getElementById('booksTable'); tbody.innerHTML='';
+          let sumPrice=0; let sumPages=0;
+          books.forEach((book,i)=>{
+            sumPrice += Number(book.prijs)||0; sumPages += Number(book.paginas)||0;
+            const tr=document.createElement('tr');
+            tr.style.backgroundColor = (i%2===0)?'var(--row-even)':'var(--row-odd)';
+            tr.innerHTML=`
+              <td class='px-3 py-2 text-sm'>${i+1}</td>
+              <td class='px-3 py-2 text-sm'>${book.titel||''}</td>
+              <td class='px-3 py-2 text-sm'>${(book.auteur_voornaam||'')} ${(book.auteur_achternaam||'')}</td>
+              <td class='px-3 py-2 text-sm'>${book.genre||''}</td>
+              <td class='px-3 py-2 text-sm'>${formatCurrency(book.prijs)}</td>
+              <td class='px-3 py-2 text-sm'>${book.paginas||''}</td>
+              <td class='px-3 py-2 text-sm'>${book.bindwijze||''}</td>
+              <td class='px-3 py-2 text-sm'>${book.edition||''}</td>
+              <td class='px-3 py-2 text-sm'>${book.isbn||''}</td>
+              <td class='px-3 py-2 text-sm'>${book.reeks_nr||''}</td>
+              <td class='px-3 py-2 text-sm'>${book.uitgeverij||''}</td>
+              <td class='px-3 py-2 text-sm'>${book.serie||''}</td>
+              <td class='px-3 py-2 text-sm'>${book.staat||''}</td>
+              <td class='px-3 py-2 text-sm'>${book.taal||''}</td>
+              <td class='px-3 py-2 text-sm'>${book.gesigneerd||''}</td>
+              <td class='px-3 py-2 text-sm'>${book.gelezen||''}</td>
+              <td class='px-3 py-2 text-sm'><a href='/edit/${book.id}' class='link-primary'>Bewerken</a></td>`;
+            tbody.appendChild(tr);
+          });
+          totalBooks.textContent=books.length;
+          totalPriceEl.textContent=formatCurrency(sumPrice);
+          totalPagesEl.textContent=sumPages;
+
+          // Als er precies 1 resultaat is, haal automatisch de cover op
+          if(books.length===1){
+            clearTimeout(coverDebounceTimeout);
+            coverDebounceTimeout=setTimeout(()=>fetchCover(books[0].titel, books[0].isbn), 500);
+          } else { coverSection.classList.add('hidden'); }
+        })
+        .catch(()=>showFlashMessage('Fout bij zoeken.','error'));
     }
 
-    inputs.forEach(input=>input.addEventListener('input',()=>{clearTimeout(debounceTimeout); debounceTimeout=setTimeout(updateBooks,300);}));
+    // Live search met debounce
+    inputs.forEach(input=> input.addEventListener('input', ()=>{ clearTimeout(debounceTimeout); debounceTimeout=setTimeout(updateBooks, 300); }));
 
-    searchForm.addEventListener('submit',e=>{
-      if(e.submitter.value==='search'){ e.preventDefault(); const fd=new FormData(searchForm); fetchCover(fd.get('titel')?.trim(), fd.get('isbn')?.trim()); updateBooks(); }
+    // Form submit: voorkom page reload voor zoekactie
+    searchForm.addEventListener('submit', (e)=>{
+      if (e.submitter && e.submitter.value === 'search') {
+        e.preventDefault();
+        const fd=new FormData(searchForm);
+        fetchCover((fd.get('titel')||'').trim(), (fd.get('isbn')||'').trim());
+        updateBooks();
+      }
     });
   </script>
 </body>
