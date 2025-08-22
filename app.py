@@ -5,6 +5,7 @@ from models.database import init_db, get_db_connection
 from models.book import load_csv_to_db, search_books, add_book, edit_book, delete_book
 from models.user import register_user, login_user, is_admin
 from models.settings import get_settings, update_settings
+from flask import redirect, url_for, flash
 import os
 
 app = Flask(__name__)
@@ -31,19 +32,82 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# Context processor → maakt is_admin beschikbaar in alle templates
+@app.context_processor
+def inject_is_admin():
+    return dict(is_admin=is_admin())
+
 # Initialize database
 init_db()
 
+@app.route('/manage_users', methods=['GET', 'POST'])
+def manage_users():
+    if not is_admin():  # Alleen admins mogen hier
+        flash('Je hebt geen toegang tot deze pagina.', 'error')
+        return redirect(url_for('index'))
+
+    conn = get_db_connection()
+    c = conn.cursor()
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        user_id = request.form.get('user_id')
+
+        if action == 'delete':
+            c.execute('DELETE FROM users WHERE id = ?', (user_id,))
+            flash('Gebruiker verwijderd.', 'success')
+        elif action == 'make_admin':
+            c.execute('UPDATE users SET role = "admin" WHERE id = ?', (user_id,))
+            flash('Gebruiker is nu admin.', 'success')
+        elif action == 'remove_admin':
+            c.execute('UPDATE users SET role = "user" WHERE id = ?', (user_id,))
+            flash('Adminstatus verwijderd.', 'success')
+
+        conn.commit()
+
+    c.execute('SELECT id, username, role FROM users')
+    users = c.fetchall()
+    conn.close()
+    return render_template('manage_users.html', users=users)
+
+@app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
+def delete_user(user_id):
+    if not is_admin():
+        return redirect(url_for('index'))
+
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+    flash("Gebruiker verwijderd!")
+    return redirect(url_for('manage_users'))
+
+@app.route('/admin/users/promote/<int:user_id>', methods=['POST'])
+def promote_user(user_id):
+    if not is_admin():
+        return redirect(url_for('index'))
+
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("UPDATE users SET role = 'admin' WHERE id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+    flash("Gebruiker is nu admin!")
+    return redirect(url_for('manage_users'))
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    settings = get_settings()
     if request.method == 'POST':
         success, message = register_user(request.form)
         flash(message, 'success' if success else 'error')
         return redirect(url_for('login') if success else 'register')
-    return render_template('register.html', is_admin=is_admin())
+    return render_template('register.html', settings=settings)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    settings = get_settings()
     if request.method == 'POST':
         success, message = login_user(request.form)
         if success:
@@ -51,7 +115,7 @@ def login():
             return redirect(url_for('index'))
         flash(message, 'error')
         return redirect(url_for('login'))
-    return render_template('login.html')
+    return render_template('login.html', settings=settings)
 
 @app.route('/logout')
 def logout():
@@ -118,7 +182,7 @@ def index():
     total_pages = df['paginas'].sum() if not df.empty else 0
     
     return render_template('index.html', books=books, total_price=total_price, total_pages=total_pages, 
-                          filters=filters, settings=settings, edit_book_data=edit_book_data, is_admin=is_admin())
+                          filters=filters, settings=settings, edit_book_data=edit_book_data)
 
 @app.route('/search', methods=['POST'])
 def search():
@@ -201,7 +265,7 @@ def statistics():
     except Exception as e:
         flash(f"Databasefout bij ophalen statistieken: {str(e)}", "error")
         conn.close()
-        return render_template('statistics.html', charts={}, settings=settings, is_admin=is_admin())
+        return render_template('statistics.html', charts={}, settings=settings)
     
     conn.close()
     charts = {}
@@ -232,7 +296,7 @@ def statistics():
             avg_price = df.groupby("genre")["prijs"].mean().to_dict()
             charts['avg_price'] = {'labels': list(avg_price.keys()), 'data': [round(v, 2) for v in avg_price.values()]}
     
-    return render_template('statistics.html', charts=charts, settings=settings, is_admin=is_admin())
+    return render_template('statistics.html', charts=charts, settings=settings)
 
 @app.route('/settings', methods=['GET', 'POST'])
 @login_required
@@ -246,7 +310,7 @@ def settings():
             flash("Instellingen opgeslagen!", "success")
         return redirect(url_for('settings'))
     
-    return render_template('settings.html', settings=settings, is_admin=is_admin())
+    return render_template('settings.html', settings=settings)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))

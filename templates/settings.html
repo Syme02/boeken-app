@@ -26,6 +26,28 @@
     .link-primary:hover { text-decoration: underline; }
     header { background-color: var(--background-color); color: var(--text-color); }
     .logo { width: 40px; height: 40px; object-fit: contain; border: 1px solid var(--text-color); }
+    #colorPicker {
+      cursor: crosshair;
+      border: 2px solid var(--border-color);
+      width: 100%;
+      height: 150px;
+      position: relative;
+    }
+    #colorIndicator {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--text-color);
+      position: absolute;
+      pointer-events: none;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .color-preview {
+      width: 100%;
+      height: 30px; /* Smallere balk */
+      border: 2px solid var(--border-color);
+      margin-top: 0.5rem;
+    }
     @media (max-width: 640px) { .logo { width: 32px; height: 32px; } }
   </style>
 </head>
@@ -69,19 +91,25 @@
 
       <!-- Kleur en donkere modus -->
       <h3 class="text-lg font-semibold mb-2">Algemene Instellingen</h3>
+        {% if is_admin %}
+        <div class="mb-4">
+          <a href="{{ url_for('manage_users') }}"
+             class="inline-flex items-center px-4 py-2 text-white font-medium rounded-md shadow-sm transition-colors duration-200"
+             style="background-color: var(--primary-color);">
+            Gebruikersbeheer
+          </a>
+        </div>
+        {% endif %}
       <form method="POST" class="mb-6">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label for="color" class="block text-sm font-medium">Thema Kleur</label>
-            <select id="color" name="color" class="mt-1 block w-full rounded-md shadow-sm input-base px-3 py-2">
-              <option value="#15d49b" {% if settings.color == '#15d49b' %}selected{% endif %}>Standaard (Cyaan)</option>
-              <option value="#ff0000" {% if settings.color == '#ff0000' %}selected{% endif %}>Rood</option>
-              <option value="#0000ff" {% if settings.color == '#0000ff' %}selected{% endif %}>Blauw</option>
-              <option value="#008000" {% if settings.color == '#008000' %}selected{% endif %}>Groen</option>
-              <option value="#800080" {% if settings.color == '#800080' %}selected{% endif %}>Paars</option>
-              <option value="#ffa500" {% if settings.color == '#ffa500' %}selected{% endif %}>Oranje</option>
-              <option value="#00b7eb" {% if settings.color == '#00b7eb' %}selected{% endif %}>Cyaan</option>
-            </select>
+            <div class="relative">
+              <canvas id="colorPicker" width="300" height="150"></canvas>
+              <div id="colorIndicator" style="display: none;"></div>
+              <input type="hidden" name="color" id="selectedColor" value="{{ settings.color }}">
+              <div id="colorPreview" class="color-preview"></div>
+            </div>
           </div>
           <div class="flex items-center">
             <input type="checkbox" id="dark_mode" name="dark_mode" class="h-4 w-4 text-blue-600 border-gray-300 rounded" {% if settings.dark_mode %}checked{% endif %} />
@@ -116,5 +144,125 @@
     </div>
     <p class="text-center mt-6 italic" style="color: var(--muted);">Versie 1.4.7 | Logo by <a href="https://www.flaticon.com" class="link-primary">Flaticon</a></p>
   </div>
-</body>
-</html>
+
+  <script>
+    const canvas = document.getElementById('colorPicker');
+    const ctx = canvas.getContext('2d');
+    const indicator = document.getElementById('colorIndicator');
+    const colorInput = document.getElementById('selectedColor');
+    const colorPreview = document.getElementById('colorPreview');
+    let isDragging = false;
+
+    // Dynamisch de canvas-grootte aanpassen aan de container
+    function resizeCanvas() {
+      canvas.width = canvas.parentElement.offsetWidth;
+      canvas.height = 150;
+      drawGradient();
+    }
+
+    // Teken een 2D-gradient (hue horizontaal, saturatie verticaal)
+    function drawGradient() {
+      const width = canvas.width;
+      const height = canvas.height;
+      const gradient = ctx.createLinearGradient(0, 0, width, 0); // Hue over x-as
+      gradient.addColorStop(0, 'hsl(0, 100%, 50%)');    // Rood
+      gradient.addColorStop(0.17, 'hsl(300, 100%, 50%)'); // Magenta
+      gradient.addColorStop(0.33, 'hsl(240, 100%, 50%)'); // Blauw
+      gradient.addColorStop(0.5, 'hsl(120, 100%, 50%)');  // Groen
+      gradient.addColorStop(0.67, 'hsl(60, 100%, 50%)');  // Geel
+      gradient.addColorStop(0.83, 'hsl(30, 100%, 50%)');  // Oranje
+      gradient.addColorStop(1, 'hsl(0, 100%, 50%)');     // Terug naar rood
+
+      const imageData = ctx.createImageData(width, height);
+      for (let x = 0; x < width; x++) {
+        for (let y = 0; y < height; y++) {
+          const hue = (x / width) * 360; // Hue van 0 tot 360 graden
+          const saturation = 1 - (y / height); // Saturatie van 100% (boven) naar 0% (onder)
+          const lightness = 0.5; // Vaste lichtheid voor nu
+          const rgb = hslToRgb(hue, saturation * 100, lightness * 100);
+          const i = (y * width + x) * 4;
+          imageData.data[i] = rgb[0];     // R
+          imageData.data[i + 1] = rgb[1]; // G
+          imageData.data[i + 2] = rgb[2]; // B
+          imageData.data[i + 3] = 255;    // A
+        }
+      }
+      ctx.putImageData(imageData, 0, 0);
+    }
+
+    // Converteer HSL naar RGB
+    function hslToRgb(h, s, l) {
+      s /= 100;
+      l /= 100;
+      const c = (1 - Math.abs(2 * l - 1)) * s;
+      const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+      const m = l - c / 2;
+      let r = 0, g = 0, b = 0;
+      if (h >= 0 && h < 60) { r = c; g = x; b = 0; }
+      else if (h >= 60 && h < 120) { r = x; g = c; b = 0; }
+      else if (h >= 120 && h < 180) { r = 0; g = c; b = x; }
+      else if (h >= 180 && h < 240) { r = 0; g = x; b = c; }
+      else if (h >= 240 && h < 300) { r = x; g = 0; b = c; }
+      else if (h >= 300 && h < 360) { r = c; g = 0; b = x; }
+      r = Math.round((r + m) * 255);
+      g = Math.round((g + m) * 255);
+      b = Math.round((b + m) * 255);
+      return [r, g, b];
+    }
+
+    // Initialiseer indicator en preview op huidige kleur
+    function updateIndicatorAndPreview(x, y) {
+      x = Math.max(0, Math.min(canvas.width - 1, x));
+      y = Math.max(0, Math.min(canvas.height - 1, y));
+      indicator.style.left = `${x}px`;
+      indicator.style.top = `${y}px`;
+      indicator.style.display = 'block';
+      const imageData = ctx.getImageData(x, y, 1, 1).data;
+      const hex = `#${(imageData[0] * 65536 + imageData[1] * 256 + imageData[2]).toString(16).padStart(6, '0')}`;
+      colorInput.value = hex; // Zorg dat de verborgen input de nieuwe waarde krijgt
+      indicator.style.backgroundColor = hex;
+      colorPreview.style.backgroundColor = hex;
+    }
+
+    // Muishandelingen
+    canvas.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      updateIndicatorAndPreview(e.offsetX, e.offsetY);
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+      if (isDragging) {
+        updateIndicatorAndPreview(e.offsetX, e.offsetY);
+      }
+    });
+
+    canvas.addEventListener('mouseup', () => {
+      isDragging = false;
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+      isDragging = false;
+    });
+
+    // Initialiseer canvas en indicator/preview bij laden
+    window.addEventListener('load', () => {
+      resizeCanvas();
+      const currentColor = '{{ settings.color }}'.replace('#', '');
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      for (let x = 0; x < canvas.width; x++) {
+        for (let y = 0; y < canvas.height; y++) {
+          const i = (y * canvas.width + x) * 4;
+          const r = imgData.data[i];
+          const g = imgData.data[i + 1];
+          const b = imgData.data[i + 2];
+          const hex = `#${(r * 65536 + g * 256 + b).toString(16).padStart(6, '0')}`;
+          if (hex.toUpperCase() === `#${currentColor.toUpperCase()}`) {
+            updateIndicatorAndPreview(x, y);
+            break;
+          }
+        }
+      }
+    });
+
+    window.addEventListener('resize', resizeCanvas);
+  </script>

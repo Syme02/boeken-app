@@ -1,0 +1,43 @@
+<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+<h2 class="text-xl font-bold mb-4">Gebruikersbeheer</h2>
+
+<table class="w-full text-left border-collapse">
+  <thead>
+    <tr>
+      <th class="border-b p-2">Gebruiker</th>
+      <th class="border-b p-2">Rol</th>
+      <th class="border-b p-2">Acties</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for user in users %}
+    <tr class="border-b">
+      <td class="p-2">{{ user[1] }}</td>
+      <td class="p-2">{{ user[2] }}</td>
+      <td class="p-2 space-x-2">
+        {% if session.user_id != user[0] %} {# Admin mag zichzelf niet verwijderen #}
+        <form method="POST" class="inline">
+          <input type="hidden" name="user_id" value="{{ user[0] }}">
+          {% if user[2] == 'user' %}
+            <button type="submit" name="action" value="make_admin" class="px-2 py-1 bg-green-500 text-white rounded">Maak admin</button>
+          {% else %}
+            <button type="submit" name="action" value="remove_admin" class="px-2 py-1 bg-yellow-500 text-white rounded">Degradeer</button>
+          {% endif %}
+          <button type="submit" name="action" value="delete" class="px-2 py-1 bg-red-500 text-white rounded">Verwijder</button>
+        </form>
+        {% else %}
+          <span class="text-gray-400">Jezelf</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+        <div class="mb-4">
+          <a href="{{ url_for('settings') }}"
+             class="inline-flex items-center px-4 py-2 text-black font-medium rounded-md shadow-sm transition-colors duration-200"
+             style="background-color: var(--primary-color);">
+            Terug naar settings
+          </a>
+        </div>
+
