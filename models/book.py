@@ -95,19 +95,50 @@ def load_csv_to_db(csv_source, overwrite=False):
 def search_books(filters):
     conn = get_db_connection()
     c = conn.cursor()
-    query = 'SELECT * FROM books'
+    query = 'SELECT * FROM books WHERE 1=1'
     params = []
-    where_clauses = []
     
+    # Text-based filters
     for col in ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'uitgeverij', 'isbn', 
                 'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition']:
         value = filters.get(col, '').strip()
         if value:
-            where_clauses.append(f"{col} LIKE ?")
+            query += f" AND {col} LIKE ?"
             params.append(f'%{value}%')
     
-    if where_clauses:
-        query += ' WHERE ' + ' AND '.join(where_clauses)
+    # Numeric filter for reeks_nr
+    if 'reeks_nr' in filters and filters['reeks_nr'].strip():
+        try:
+            query += " AND reeks_nr = ?"
+            params.append(int(filters['reeks_nr']))
+        except ValueError:
+            pass  # Ignore invalid numeric input for reeks_nr
+    
+    # Numeric range filters
+    if 'min_prijs' in filters and filters['min_prijs'].strip():
+        try:
+            query += " AND prijs >= ?"
+            params.append(float(filters['min_prijs']))
+        except ValueError:
+            pass  # Ignore invalid numeric input
+    if 'max_prijs' in filters and filters['max_prijs'].strip():
+        try:
+            query += " AND prijs <= ?"
+            params.append(float(filters['max_prijs']))
+        except ValueError:
+            pass  # Ignore invalid numeric input
+    if 'min_paginas' in filters and filters['min_paginas'].strip():
+        try:
+            query += " AND paginas >= ?"
+            params.append(int(filters['min_paginas']))
+        except ValueError:
+            pass  # Ignore invalid numeric input
+    if 'max_paginas' in filters and filters['max_paginas'].strip():
+        try:
+            query += " AND paginas <= ?"
+            params.append(int(filters['max_paginas']))
+        except ValueError:
+            pass  # Ignore invalid numeric input
     
     try:
         c.execute(query + ' ORDER BY genre ASC, auteur_achternaam ASC, reeks_nr ASC', params)
@@ -132,7 +163,7 @@ def add_book(form):
         'bindwijze': form.get('bindwijze', ''),
         'edition': form.get('edition', ''),
         'isbn': form.get('isbn', ''),
-        'reeks_nr': form.get('reeks_nr', ''),
+        'reeks_nr': int(form.get('reeks_nr', 0)) if form.get('reeks_nr', '').strip() else 0,
         'uitgeverij': form.get('uitgeverij', ''),
         'serie': form.get('serie', ''),
         'staat': form.get('staat', ''),
@@ -171,7 +202,7 @@ def edit_book(book_id, form):
         'bindwijze': form.get('bindwijze', ''),
         'edition': form.get('edition', ''),
         'isbn': form.get('isbn', ''),
-        'reeks_nr': form.get('reeks_nr', ''),
+        'reeks_nr': int(form.get('reeks_nr', 0)) if form.get('reeks_nr', '').strip() else 0,
         'uitgeverij': form.get('uitgeverij', ''),
         'serie': form.get('serie', ''),
         'staat': form.get('staat', ''),

@@ -4,8 +4,6 @@ from functools import wraps
 from models.database import init_db, get_db_connection
 from models.book import load_csv_to_db, search_books, add_book, edit_book, delete_book
 from models.user import register_user, login_user, is_admin
-from models.settings import get_settings, update_settings
-from flask import redirect, url_for, flash
 import os
 
 app = Flask(__name__)
@@ -13,7 +11,7 @@ app.secret_key = os.urandom(24).hex()
 app.config['SESSION_TYPE'] = 'filesystem'
 CORS(app)
 
-# Decorateurs
+# Decorators
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -40,9 +38,24 @@ def inject_is_admin():
 # Initialize database
 init_db()
 
+def get_user_settings(user_id):
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute('SELECT color, dark_mode FROM users WHERE id = ?', (user_id,))
+    result = c.fetchone()
+    conn.close()
+    return {'color': result[0] if result else '#e31c73', 'dark_mode': result[1] if result else True}
+
+def update_user_settings(user_id, color, dark_mode):
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute('UPDATE users SET color = ?, dark_mode = ? WHERE id = ?', (color, dark_mode, user_id))
+    conn.commit()
+    conn.close()
+
 @app.route('/manage_users', methods=['GET', 'POST'])
 def manage_users():
-    if not is_admin():  # Alleen admins mogen hier
+    if not is_admin():
         flash('Je hebt geen toegang tot deze pagina.', 'error')
         return redirect(url_for('index'))
 
@@ -68,7 +81,7 @@ def manage_users():
     c.execute('SELECT id, username, role FROM users')
     users = c.fetchall()
     conn.close()
-    return render_template('manage_users.html', users=users)
+    return render_template('manage_users.html', users=users, settings=get_user_settings(session.get('user_id')))
 
 @app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
 def delete_user(user_id):
@@ -98,16 +111,14 @@ def promote_user(user_id):
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    settings = get_settings()
     if request.method == 'POST':
         success, message = register_user(request.form)
         flash(message, 'success' if success else 'error')
         return redirect(url_for('login') if success else 'register')
-    return render_template('register.html', settings=settings)
+    return render_template('register.html', settings=get_user_settings(session.get('user_id', 0)))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    settings = get_settings()
     if request.method == 'POST':
         success, message = login_user(request.form)
         if success:
@@ -115,7 +126,7 @@ def login():
             return redirect(url_for('index'))
         flash(message, 'error')
         return redirect(url_for('login'))
-    return render_template('login.html', settings=settings)
+    return render_template('login.html', settings=get_user_settings(session.get('user_id', 0)))
 
 @app.route('/logout')
 def logout():
@@ -127,7 +138,8 @@ def logout():
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    settings = get_settings()
+    user_id = session.get('user_id', 0)
+    settings = get_user_settings(user_id)
     conn = get_db_connection()
     filters = {}
     edit_book_data = {}
@@ -141,17 +153,26 @@ def index():
         action = request.form.get('action', 'search')
         
         if action == 'add':
-            success, message = add_book(request.form)
+            form_data = request.form.copy()
+            form_data = form_data.to_dict()  # Convert to regular dict
+            form_data['prijs'] = form_data.get('min_prijs', '')  # Use min_prijs for adding
+            form_data['paginas'] = form_data.get('min_paginas', '')  # Use min_paginas for adding
+            success, message = add_book(form_data)
             flash(message, 'success' if success else 'error')
         
         elif action == 'edit':
             book_id = request.form.get('book_id', '')
-            success, message = edit_book(book_id, request.form)
+            form_data = request.form.copy()
+            form_data = form_data.to_dict()  # Convert to regular dict
+            form_data['prijs'] = form_data.get('min_prijs', '')  # Use min_prijs for editing
+            form_data['paginas'] = form_data.get('min_paginas', '')  # Use min_paginas for editing
+            success, message = edit_book(book_id, form_data)
             flash(message, 'success' if success else 'error')
         
         filters = {col: request.form.get(col, '').strip() for col in 
                    ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'uitgeverij', 'isbn', 
-                    'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition'] if request.form.get(col, '').strip()}
+                    'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition',
+                    'min_prijs', 'max_prijs', 'min_paginas', 'max_paginas'] if request.form.get(col, '').strip()}
         books = search_books(filters)
     
     else:
@@ -163,7 +184,7 @@ def index():
             if book:
                 edit_book_data = {
                     'book_id': book[0], 'titel': book[1], 'auteur_voornaam': book[2], 'auteur_achternaam': book[3],
-                    'genre': book[4], 'prijs': book[5], 'paginas': book[6], 'bindwijze': book[7],
+                    'genre': book[4], 'min_prijs': book[5], 'min_paginas': book[6], 'bindwijze': book[7],
                     'edition': book[8], 'isbn': book[9], 'reeks_nr': book[10], 'uitgeverij': book[11],
                     'serie': book[12], 'staat': book[13], 'taal': book[14], 'gesigneerd': book[15],
                     'gelezen': book[16], 'added_date': book[17]
@@ -257,7 +278,8 @@ def upload_csv():
 
 @app.route('/statistics')
 def statistics():
-    settings = get_settings()
+    user_id = session.get('user_id', 0)
+    settings = get_user_settings(user_id)
     conn = get_db_connection()
     try:
         import pandas as pd
@@ -295,18 +317,19 @@ def statistics():
         if "genre" in df.columns and "prijs" in df.columns:
             avg_price = df.groupby("genre")["prijs"].mean().to_dict()
             charts['avg_price'] = {'labels': list(avg_price.keys()), 'data': [round(v, 2) for v in avg_price.values()]}
-    
+
     return render_template('statistics.html', charts=charts, settings=settings)
 
 @app.route('/settings', methods=['GET', 'POST'])
 @login_required
 def settings():
-    settings = get_settings()
+    user_id = session.get('user_id')
+    settings = get_user_settings(user_id)
     if request.method == 'POST':
         if 'color' in request.form:
             color = request.form.get('color', settings['color']).strip()
             dark_mode = 'dark_mode' in request.form
-            update_settings(color=color, dark_mode=dark_mode)
+            update_user_settings(user_id, color, dark_mode)
             flash("Instellingen opgeslagen!", "success")
         return redirect(url_for('settings'))
     

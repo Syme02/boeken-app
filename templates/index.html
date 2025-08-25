@@ -87,12 +87,26 @@
         <input type="hidden" name="action" id="form_action" value="search">
         <input type="hidden" name="book_id" id="book_id" value="{{ edit_book_data.book_id if edit_book_data else '' }}">
         <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          {% for field in ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'prijs', 'paginas', 'uitgeverij', 'isbn', 'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition'] %}
-            <div>
+          {% for field in ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'uitgeverij', 'isbn', 'reeks_nr', 'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition'] %}
+            <div class="flex flex-col">
               <label for="{{ field }}" class="block text-sm font-medium">{{ field.replace('_', ' ').title() }}</label>
-              <input type="text" id="{{ field }}" name="{{ field }}" value="{{ edit_book_data[field] if edit_book_data and field in edit_book_data else filters[field] if field in filters else '' }}" class="mt-1 block w-full rounded-md shadow-sm input-base px-3 py-2" {% if not is_admin and field not in ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'uitgeverij', 'isbn', 'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition'] %}disabled{% endif %} />
+              <input type="text" id="{{ field }}" name="{{ field }}" value="{{ edit_book_data[field] if edit_book_data and field in edit_book_data else filters[field] if field in filters else '' }}" class="mt-1 block w-full rounded-md shadow-sm input-base px-3 py-2" />
             </div>
           {% endfor %}
+          <div class="flex flex-col">
+            <label class="block text-sm font-medium">Prijs</label>
+            <div class="flex space-x-2">
+              <input type="number" step="0.01" min="0" id="min_prijs" name="min_prijs" value="{{ edit_book_data.min_prijs | default(filters.min_prijs, true) | default('', true) }}" class="mt-1 block w-1/2 rounded-md shadow-sm input-base px-3 py-2" placeholder="Min" />
+              <input type="number" step="0.01" min="0" id="max_prijs" name="max_prijs" value="{{ filters.max_prijs | default('', true) }}" class="mt-1 block w-1/2 rounded-md shadow-sm input-base px-3 py-2" placeholder="Max" />
+            </div>
+          </div>
+          <div class="flex flex-col">
+            <label class="block text-sm font-medium">Pagina's</label>
+            <div class="flex space-x-2">
+              <input type="number" min="0" id="min_paginas" name="min_paginas" value="{{ edit_book_data.min_paginas | default(filters.min_paginas, true) | default('', true) }}" class="mt-1 block w-1/2 rounded-md shadow-sm input-base px-3 py-2" placeholder="Min" />
+              <input type="number" min="0" id="max_paginas" name="max_paginas" value="{{ filters.max_paginas | default('', true) }}" class="mt-1 block w-1/2 rounded-md shadow-sm input-base px-3 py-2" placeholder="Max" />
+            </div>
+          </div>
         </div>
         <div class="flex flex-wrap gap-3 mt-4">
           <button type="submit" onclick="document.getElementById('form_action').value='search'" class="px-4 py-2 rounded-md btn-primary">Zoeken</button>
@@ -189,7 +203,7 @@
     let debounceTimeout; let coverDebounceTimeout;
 
     function showFlashMessage(message, category) {
-      const flashContainer = document.querySelector('.flash-container') || (() => { const el=document.createElement('div'); el.className='flash-container space-y-2 mb-4'; searchForm.insertAdjacentElement('beforebegin', el); return el; })();
+      const flashContainer = document.querySelector('.flash-container') || (() => { const el=document.createElement('div'); el.className='flash-container space-y-2 mb-4'; searchForm.parentNode.insertBefore(el, searchForm); return el; })();
       const flashMessage = document.createElement('div');
       flashMessage.className = `p-3 rounded-lg text-white shadow-md ${category==='success'?'bg-green-600':category==='error'?'bg-red-600':'bg-blue-600'}`;
       flashMessage.textContent = message; flashContainer.appendChild(flashMessage);
@@ -212,7 +226,11 @@
     function formatCurrency(value){ try{ const v=Number(value)||0; return v.toFixed(2); }catch{ return '0.00'; } }
 
     function updateBooks() {
-      const formData = {}; inputs.forEach(input => { const v=input.value.trim(); if(v && input.name !== 'action' && input.name !== 'book_id') formData[input.name]=v; });
+      const formData = {};
+      inputs.forEach(input => {
+        const v=input.value.trim();
+        if(v && input.name !== 'action' && input.name !== 'book_id') formData[input.name]=v;
+      });
       fetch('/search',{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(formData)})
         .then(r=>r.json())
         .then(books=>{
