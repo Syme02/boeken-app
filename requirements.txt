@@ -1,6 +1,8 @@
 Flask==2.3.2
+bcrypt
 pandas==1.5.3
 numpy==1.23.5
 waitress==2.1.2
 setuptools==65.5.1
 requests==2.32.3  # Laatste stabiele versie op dit moment
+flask-cors
