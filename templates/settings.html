@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Instellingen | Boeken Applicatie</title>
+  <title>Boeken Applicatie</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
   <style>
     :root {
@@ -11,6 +11,8 @@
       --background-color: {{ '#1f2937' if settings.dark_mode else '#ffffff' }};
       --text-color: {{ '#f9fafb' if settings.dark_mode else '#111827' }};
       --card-bg: {{ '#111827' if settings.dark_mode else '#ffffff' }};
+      --row-odd: {{ '#0f172a' if settings.dark_mode else '#ffffff' }};
+      --row-even: {{ '#111827' if settings.dark_mode else '#f9fafb' }};
       --muted: {{ '#9ca3af' if settings.dark_mode else '#6b7280' }};
       --border-color: {{ '#374151' if settings.dark_mode else '#e5e7eb' }};
       --focus-ring: {{ settings.color }};
@@ -24,30 +26,10 @@
     .btn-primary:hover { filter: brightness(0.95); }
     .link-primary { color: var(--primary-color); }
     .link-primary:hover { text-decoration: underline; }
+    thead th { white-space: nowrap; }
+    thead { position: sticky; top: 0; z-index: 10; }
     header { background-color: var(--background-color); color: var(--text-color); }
     .logo { width: 40px; height: 40px; object-fit: contain; border: 1px solid var(--text-color); }
-    #colorPicker {
-      cursor: crosshair;
-      border: 2px solid var(--border-color);
-      width: 100%;
-      height: 150px;
-      position: relative;
-    }
-    #colorIndicator {
-      width: 20px;
-      height: 20px;
-      border: 2px solid var(--text-color);
-      position: absolute;
-      pointer-events: none;
-      border-radius: 50%;
-      transform: translate(-50%, -50%);
-    }
-    .color-preview {
-      width: 100%;
-      height: 30px; /* Smallere balk */
-      border: 2px solid var(--border-color);
-      margin-top: 0.5rem;
-    }
     @media (max-width: 640px) { .logo { width: 32px; height: 32px; } }
   </style>
 </head>
@@ -63,9 +45,17 @@
       <nav class="flex space-x-4 items-center">
         <a href="{{ url_for('index') }}" class="px-4 py-2 rounded-md font-medium link-primary">Boeken Zoeken</a>
         <a href="{{ url_for('statistics') }}" class="px-4 py-2 rounded-md font-medium link-primary">Grafieken</a>
-        <a href="{{ url_for('settings') }}" class="px-4 py-2 rounded-md font-medium link-primary">Instellingen</a>
-        <span class="text-sm">Ingelogd als: {{ session.username }} ({{ session.role }})</span>
-        <a href="{{ url_for('logout') }}" class="px-4 py-2 rounded-md btn-primary">Uitloggen</a>
+
+        {% if session.username %}
+        <a href="{{ url_for('mijn_boekenlijst') }}" class="px-4 py-2 rounded-md font-medium link-primary">Mijn Boekenlijst</a>
+
+          <a href="{{ url_for('settings') }}" class="px-4 py-2 rounded-md font-medium link-primary">Instellingen</a>
+          <span class="text-sm">Ingelogd als: {{ session.username }} ({{ session.role }})</span>
+          <a href="{{ url_for('logout') }}" class="px-4 py-2 rounded-md btn-primary">Uitloggen</a>
+        {% else %}
+          <a href="{{ url_for('login') }}" class="px-4 py-2 rounded-md btn-primary">Inloggen</a>
+          <a href="{{ url_for('register') }}" class="px-4 py-2 rounded-md btn-primary">Registreren</a>
+        {% endif %}
       </nav>
     </div>
   </header>

@@ -2,6 +2,9 @@ from .database import get_db_connection
 from datetime import datetime
 import pandas as pd
 from io import StringIO
+import sqlite3
+
+DB_PATH = "books.db"  # pas aan als je bestand anders heet
 
 def load_csv_to_db(csv_source, overwrite=False):
     try:
@@ -243,3 +246,62 @@ def delete_book(book_id):
     except Exception as e:
         conn.close()
         return False, f"Databasefout bij verwijderen: {str(e)}"
+        
+def toggle_like(user_id, book_id):
+    conn = get_db_connection()
+    c = conn.cursor()
+    # check of er al een like is
+    c.execute("SELECT id FROM user_likes WHERE user_id = ? AND book_id = ?", (user_id, book_id))
+    row = c.fetchone()
+    if row:
+        c.execute("DELETE FROM user_likes WHERE id = ?", (row[0],))
+        conn.commit()
+        conn.close()
+        return False  # unlike
+    else:
+        c.execute("INSERT INTO user_likes (user_id, book_id) VALUES (?, ?)", (user_id, book_id))
+        conn.commit()
+        conn.close()
+        return True  # like
+
+
+def get_user_likes(user_id):
+    """Geef een set van book_ids die de gebruiker heeft geliket."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT book_id FROM likes WHERE user_id = ?", (user_id,))
+    rows = c.fetchall()
+    conn.close()
+    return {row[0] for row in rows}
+
+def toggle_like(user_id, book_id):
+    """Toggle like/unlike: als het boek al geliket is → verwijder, anders voeg toe."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    # check of like bestaat
+    c.execute("SELECT 1 FROM likes WHERE user_id = ? AND book_id = ?", (user_id, book_id))
+    exists = c.fetchone()
+    if exists:
+        c.execute("DELETE FROM likes WHERE user_id = ? AND book_id = ?", (user_id, book_id))
+        liked = False
+    else:
+        c.execute("INSERT INTO likes (user_id, book_id) VALUES (?, ?)", (user_id, book_id))
+        liked = True
+    conn.commit()
+    conn.close()
+    return liked
+
+def get_books_by_ids(book_ids):
+    """Haal alle boeken op waarvan de id in book_ids zit."""
+    if not book_ids:
+        return []
+
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    placeholders = ",".join("?" for _ in book_ids)
+    query = f"SELECT * FROM books WHERE id IN ({placeholders})"
+    c.execute(query, tuple(book_ids))
+    rows = c.fetchall()
+    conn.close()
+    return rows
+

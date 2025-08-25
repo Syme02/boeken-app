@@ -50,10 +50,11 @@
       <nav class="flex space-x-4 items-center">
         <a href="{{ url_for('index') }}" class="px-4 py-2 rounded-md font-medium link-primary">Boeken Zoeken</a>
         <a href="{{ url_for('statistics') }}" class="px-4 py-2 rounded-md font-medium link-primary">Grafieken</a>
-        {% if is_admin %}
-          <a href="{{ url_for('settings') }}" class="px-4 py-2 rounded-md font-medium link-primary">Instellingen</a>
-        {% endif %}
+
         {% if session.username %}
+        <a href="{{ url_for('mijn_boekenlijst') }}" class="px-4 py-2 rounded-md font-medium link-primary">Mijn Boekenlijst</a>
+
+          <a href="{{ url_for('settings') }}" class="px-4 py-2 rounded-md font-medium link-primary">Instellingen</a>
           <span class="text-sm">Ingelogd als: {{ session.username }} ({{ session.role }})</span>
           <a href="{{ url_for('logout') }}" class="px-4 py-2 rounded-md btn-primary">Uitloggen</a>
         {% else %}

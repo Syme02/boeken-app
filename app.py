@@ -3,7 +3,7 @@ from flask_cors import CORS
 from functools import wraps
 from models.database import init_db, get_db_connection
 from models.book import load_csv_to_db, search_books, add_book, edit_book as update_book, delete_book
-
+from models.book import toggle_like, get_user_likes, get_books_by_ids
 from models.user import register_user, login_user, is_admin
 import os
 
@@ -145,6 +145,10 @@ def index():
     filters = {}
     edit_book_data = {}
     books = []
+    user_likes = set()
+    
+    if "user_id" in session:
+        user_likes = get_user_likes(session["user_id"])
 
     if request.method == 'POST':
         if not is_admin() and request.form.get('action') in ['add', 'edit']:
@@ -152,6 +156,7 @@ def index():
             return redirect(url_for('index'))
         
         action = request.form.get('action', 'search')
+
         
         if action == 'add':
             form_data = request.form.copy()
@@ -203,8 +208,48 @@ def index():
     total_price = df['prijs'].sum() if not df.empty else 0
     total_pages = df['paginas'].sum() if not df.empty else 0
     
-    return render_template('index.html', books=books, total_price=total_price, total_pages=total_pages, 
-                          filters=filters, settings=settings, edit_book_data=edit_book_data)
+    return render_template('index.html', 
+                       books=books, 
+                       total_price=total_price, 
+                       total_pages=total_pages,
+                       filters=filters, 
+                       settings=settings, 
+                       edit_book_data=edit_book_data,
+                       user_likes=user_likes)
+
+@app.route('/mijn_boeken')
+@login_required
+def mijn_boeken():
+    user_id = session['user_id']
+    liked_ids = get_user_likes(user_id)
+
+    conn = get_db_connection()
+    c = conn.cursor()
+    if liked_ids:
+        qmarks = ",".join("?"*len(liked_ids))
+        c.execute(f"SELECT * FROM books WHERE id IN ({qmarks})", liked_ids)
+        books = c.fetchall()
+    else:
+        books = []
+    conn.close()
+
+    return render_template('mijn_boeken.html', books=books, settings=get_user_settings(user_id))
+
+@app.route("/mijn_boekenlijst")
+def mijn_boekenlijst():
+    if "user_id" not in session:
+        # als niet ingelogd → terug naar login
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
+    liked_ids = get_user_likes(user_id)
+    books = get_books_by_ids(liked_ids)
+
+    return render_template(
+        "mijn_boekenlijst.html",
+        books=books
+    )
+
 
 @app.route('/search', methods=['POST'])
 def search():
@@ -336,6 +381,15 @@ def settings():
         return redirect(url_for('settings'))
     
     return render_template('settings.html', settings=settings)
+
+@app.route("/like/<int:book_id>", methods=["POST"])
+def like_book(book_id):
+    if "user_id" not in session:
+        return jsonify({"success": False, "error": "Niet ingelogd"}), 401
+
+    user_id = session["user_id"]
+    liked = toggle_like(user_id, book_id)
+    return jsonify({"success": True, "liked": liked})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))

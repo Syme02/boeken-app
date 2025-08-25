@@ -31,6 +31,17 @@ def init_db():
                   gesigneerd TEXT,
                   gelezen TEXT,
                   added_date TEXT)''')
+    # create favorites
+    c.execute('''CREATE TABLE IF NOT EXISTS user_likes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    book_id INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, book_id), -- voorkomt dubbele likes
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE CASCADE
+);
+''')
 
     # Create users table
     c.execute('''CREATE TABLE IF NOT EXISTS users (
