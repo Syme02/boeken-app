@@ -2,7 +2,8 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_cors import CORS
 from functools import wraps
 from models.database import init_db, get_db_connection
-from models.book import load_csv_to_db, search_books, add_book, edit_book, delete_book
+from models.book import load_csv_to_db, search_books, add_book, edit_book as update_book, delete_book
+
 from models.user import register_user, login_user, is_admin
 import os
 
@@ -166,7 +167,7 @@ def index():
             form_data = form_data.to_dict()  # Convert to regular dict
             form_data['prijs'] = form_data.get('min_prijs', '')  # Use min_prijs for editing
             form_data['paginas'] = form_data.get('min_paginas', '')  # Use min_paginas for editing
-            success, message = edit_book(book_id, form_data)
+            success, message = update_book(book_id, form_data)
             flash(message, 'success' if success else 'error')
         
         filters = {col: request.form.get(col, '').strip() for col in 
@@ -243,10 +244,11 @@ def fetch_cover():
     except requests.exceptions.RequestException as e:
         return jsonify({'cover_url': '', 'message': f'Fout bij extern zoeken: {str(e)}', 'category': 'error'})
 
-@app.route('/edit/<int:book_id>', methods=['GET'])
+@app.route('/edit/<int:book_id>', methods=['GET'], endpoint='edit_book')
 @admin_required
-def edit_book(book_id):
+def edit_book_view(book_id):
     return redirect(url_for('index', edit_book_id=book_id))
+
 
 @app.route('/delete/<int:book_id>', methods=['POST'])
 @admin_required

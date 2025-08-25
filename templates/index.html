@@ -93,20 +93,30 @@
               <input type="text" id="{{ field }}" name="{{ field }}" value="{{ edit_book_data[field] if edit_book_data and field in edit_book_data else filters[field] if field in filters else '' }}" class="mt-1 block w-full rounded-md shadow-sm input-base px-3 py-2" />
             </div>
           {% endfor %}
-          <div class="flex flex-col">
-            <label class="block text-sm font-medium">Prijs</label>
-            <div class="flex space-x-2">
-              <input type="number" step="0.01" min="0" id="min_prijs" name="min_prijs" value="{{ edit_book_data.min_prijs | default(filters.min_prijs, true) | default('', true) }}" class="mt-1 block w-1/2 rounded-md shadow-sm input-base px-3 py-2" placeholder="Min" />
-              <input type="number" step="0.01" min="0" id="max_prijs" name="max_prijs" value="{{ filters.max_prijs | default('', true) }}" class="mt-1 block w-1/2 rounded-md shadow-sm input-base px-3 py-2" placeholder="Max" />
+            <div class="flex flex-col">
+              <label class="block text-sm font-medium">Prijs</label>
+              <div class="flex space-x-2">
+                <input type="number" step="0.01" min="0" id="min_prijs" name="min_prijs"
+  value="{{ (edit_book_data.min_prijs if edit_book_data else (filters.min_prijs | default('', true))) }}"
+  class="mt-1 block w-1/2 rounded-md shadow-sm input-base px-3 py-2" placeholder="Min" />
+
+                <input type="number" step="0.01" min="0" id="max_prijs" name="max_prijs"
+                       value="{{ filters.max_prijs | default('', true) }}"
+                       class="mt-1 block w-1/2 rounded-md shadow-sm input-base px-3 py-2" placeholder="Max" />
+              </div>
             </div>
-          </div>
-          <div class="flex flex-col">
-            <label class="block text-sm font-medium">Pagina's</label>
-            <div class="flex space-x-2">
-              <input type="number" min="0" id="min_paginas" name="min_paginas" value="{{ edit_book_data.min_paginas | default(filters.min_paginas, true) | default('', true) }}" class="mt-1 block w-1/2 rounded-md shadow-sm input-base px-3 py-2" placeholder="Min" />
-              <input type="number" min="0" id="max_paginas" name="max_paginas" value="{{ filters.max_paginas | default('', true) }}" class="mt-1 block w-1/2 rounded-md shadow-sm input-base px-3 py-2" placeholder="Max" />
+            <div class="flex flex-col">
+              <label class="block text-sm font-medium">Pagina's</label>
+              <div class="flex space-x-2">
+                <input type="number" min="0" id="min_paginas" name="min_paginas"
+  value="{{ (edit_book_data.min_paginas if edit_book_data else (filters.min_paginas | default('', true))) }}"
+  class="mt-1 block w-1/2 rounded-md shadow-sm input-base px-3 py-2" placeholder="Min" />
+
+                <input type="number" min="0" id="max_paginas" name="max_paginas"
+                       value="{{ filters.max_paginas | default('', true) }}"
+                       class="mt-1 block w-1/2 rounded-md shadow-sm input-base px-3 py-2" placeholder="Max" />
+              </div>
             </div>
-          </div>
         </div>
         <div class="flex flex-wrap gap-3 mt-4">
           <button type="submit" onclick="document.getElementById('form_action').value='search'" class="px-4 py-2 rounded-md btn-primary">Zoeken</button>
