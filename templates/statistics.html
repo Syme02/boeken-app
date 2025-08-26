@@ -21,18 +21,11 @@
     .btn-primary:hover { filter: brightness(0.95); }
     .link-primary { color: var(--primary-color); }
     .link-primary:hover { text-decoration: underline; }
-    .logo {
-    width: 40px;
-    height: 40px;
-    object-fit: contain;
-    background-color: var(--muted); /* Fallback-kleur als het logo niet laadt */
-    }
 
     .logo {
   width: 40px;
   height: 40px;
-  object-fit: contain;
-  border: 1px solid var(--text-color); /* Witte rand in donkere modus, zwarte in lichte */
+  object-fit: contain;; /* Witte rand in donkere modus, zwarte in lichte */
 }
     select { border: 1px solid var(--border-color); background-color: var(--background-color); color: var(--text-color); }
     canvas { background-color: var(--card-bg); border-radius: 0.75rem; }
@@ -66,7 +59,13 @@
   </header>
   <div class="container mx-auto max-w-6xl p-4 flex-1 flex flex-col">
     <!-- Header / Tabs -->
-
+{% if fun_facts %}
+<div class="card p-4 mb-6 rounded-xl shadow-md" 
+     style="background-color: var(--card-bg); color: var(--text-color);">
+  <h3 class="font-bold mb-2">📚 Fun Fact</h3>
+  <p id="fun-fact-text" class="italic"></p>
+</div>
+{% endif %}
     <!-- Content Card -->
     <div class="card rounded-xl shadow-sm p-6 flex-1">
       {% with messages = get_flashed_messages(with_categories=true) %}
@@ -82,7 +81,11 @@
         {% endif %}
       {% endwith %}
 
+
+
       <h2 class="text-2xl font-bold mb-4">Statistieken</h2>
+
+
 
       {% if charts %}
         <div class="mb-6">
@@ -159,6 +162,23 @@
       select.value = select.options[1].value;
       showChart(select.value);
     }
+
+    {% if fun_facts %}
+  const funFacts = {{ fun_facts | tojson }};
+  let currentFact = 0;
+  const factElement = document.getElementById("fun-fact-text");
+
+  function showNextFact() {
+    factElement.textContent = funFacts[currentFact];
+    currentFact = (currentFact + 1) % funFacts.length;
+  }
+
+  // eerste direct tonen
+  showNextFact();
+  // elke 5 seconden wisselen
+  setInterval(showNextFact, 5000);
+{% endif %}
+
   </script>
 </body>
 </html>

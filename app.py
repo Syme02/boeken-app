@@ -216,39 +216,40 @@ def index():
                        settings=settings, 
                        edit_book_data=edit_book_data,
                        user_likes=user_likes)
-
-@app.route('/mijn_boeken')
-@login_required
-def mijn_boeken():
-    user_id = session['user_id']
-    liked_ids = get_user_likes(user_id)
-
-    conn = get_db_connection()
-    c = conn.cursor()
-    if liked_ids:
-        qmarks = ",".join("?"*len(liked_ids))
-        c.execute(f"SELECT * FROM books WHERE id IN ({qmarks})", liked_ids)
-        books = c.fetchall()
-    else:
-        books = []
-    conn.close()
-
-    return render_template('mijn_boeken.html', books=books, settings=get_user_settings(user_id))
-
 @app.route("/mijn_boekenlijst")
 def mijn_boekenlijst():
     if "user_id" not in session:
-        # als niet ingelogd → terug naar login
         return redirect(url_for("login"))
 
     user_id = session["user_id"]
+
     liked_ids = get_user_likes(user_id)
-    books = get_books_by_ids(liked_ids)
+    books = get_books_by_ids(liked_ids)  # lijst van tuples
+
+    settings = get_user_settings(user_id)
+
+    # Correct voor tuples
+    total_price = sum(book[5] or 0 for book in books)
+    total_pages = sum(book[6] or 0 for book in books)
+
+    filters = {}
+    is_admin = session.get("role") == "admin"
+    edit_book_data = None
+    user_likes = liked_ids
 
     return render_template(
         "mijn_boekenlijst.html",
-        books=books
+        books=books,
+        total_price=total_price,
+        total_pages=total_pages,
+        filters=filters,
+        is_admin=is_admin,
+        edit_book_data=edit_book_data,
+        user_likes=user_likes,
+        settings=settings
     )
+
+
 
 
 @app.route('/search', methods=['POST'])
@@ -364,8 +365,24 @@ def statistics():
         if "genre" in df.columns and "prijs" in df.columns:
             avg_price = df.groupby("genre")["prijs"].mean().to_dict()
             charts['avg_price'] = {'labels': list(avg_price.keys()), 'data': [round(v, 2) for v in avg_price.values()]}
+            
+    fun_facts = []
+    if not df.empty:
+        dikste = df.loc[df["paginas"].idxmax()] if "paginas" in df.columns and df["paginas"].notna().any() else None
+        duurste = df.loc[df["prijs"].idxmax()] if "prijs" in df.columns and df["prijs"].notna().any() else None
+        talen = df["taal"].nunique() if "taal" in df.columns else 0
+        
+        if dikste is not None:
+            fun_facts.append(f"Je dikste boek is '{dikste['titel']}' met {int(dikste['paginas'])} pagina’s.")
+        if duurste is not None:
+            fun_facts.append(f"Het duurste boek in je collectie is '{duurste['titel']}' voor €{round(duurste['prijs'],2)}.")
+        if talen > 1:
+            fun_facts.append(f"Je hebt boeken in {talen} verschillende talen!")
+        fun_facts.append(f"Totaal aantal boeken in je collectie: {len(df)}.")
 
-    return render_template('statistics.html', charts=charts, settings=settings)
+
+    return render_template('statistics.html', charts=charts, settings=settings, fun_facts=fun_facts)
+
 
 @app.route('/settings', methods=['GET', 'POST'])
 @login_required
