@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Statistieken</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
   <style>
     :root {
@@ -23,9 +25,10 @@
     .link-primary:hover { text-decoration: underline; }
 
     .logo {
-  width: 40px;
-  height: 40px;
-  object-fit: contain;; /* Witte rand in donkere modus, zwarte in lichte */
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+   /* Witte rand in donkere modus, zwarte in lichte */
 }
     select { border: 1px solid var(--border-color); background-color: var(--background-color); color: var(--text-color); }
     canvas { background-color: var(--card-bg); border-radius: 0.75rem; }
@@ -59,13 +62,19 @@
   </header>
   <div class="container mx-auto max-w-6xl p-4 flex-1 flex flex-col">
     <!-- Header / Tabs -->
-{% if fun_facts %}
-<div class="card p-4 mb-6 rounded-xl shadow-md" 
-     style="background-color: var(--card-bg); color: var(--text-color);">
-  <h3 class="font-bold mb-2">📚 Fun Fact</h3>
-  <p id="fun-fact-text" class="italic"></p>
-</div>
-{% endif %}
+
+    {% if fun_facts %}
+    <div class="card p-4 mb-6 rounded-xl shadow-md" 
+         style="background-color: var(--card-bg); color: var(--text-color);">
+      <h3 class="font-bold mb-2">📚 Fun Fact</h3>
+      <p id="fun-fact-text" class="italic"></p>
+    </div>
+    {% endif %}
+
+
+
+
+
     <!-- Content Card -->
     <div class="card rounded-xl shadow-sm p-6 flex-1">
       {% with messages = get_flashed_messages(with_categories=true) %}
@@ -81,10 +90,7 @@
         {% endif %}
       {% endwith %}
 
-
-
       <h2 class="text-2xl font-bold mb-4">Statistieken</h2>
-
 
 
       {% if charts %}
@@ -112,21 +118,33 @@
       {% endif %}
     </div>
 
+    <div class="card p-4 mb-6 rounded-xl shadow-md">
+    <h3 class="font-bold mb-2">📍 Boeken over Europa</h3>
+    <div id="map" style="height: 500px; border-radius: 0.75rem;"></div>
+    </div>
+
     <p class="text-center mt-6 italic" style="color: var(--muted);">Versie 1.4.7</p>
   </div>
 
-  <script>
-    function varGet(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
-    const chartInstances = {};
+<script>
+  function varGet(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  const chartInstances = {};
 
-    {% for chart_name, chart_data in charts.items() %}
+  // Log data voor debugging
+  console.log('Charts:', {{ charts | tojson | safe }});
+  console.log('Fun facts:', {{ fun_facts | tojson | safe }});
+  console.log('Location coords:', {{ location_coords | tojson | safe }});
+
+  {% for chart_name, chart_data in charts.items() %}
+    console.log('Chart {{ chart_name }} data:', {{ chart_data | tojson | safe }});
+    if ({{ chart_data.labels | tojson | safe }}.length > 0) {
       chartInstances['{{ chart_name }}'] = new Chart(document.getElementById('{{ chart_name }}-chart').getContext('2d'), {
-        type: '{{ 'pie' if chart_name in ['genre', 'gelezen', 'taal'] else 'bar' }}',
+        type: '{{ 'pie' if chart_name in ['genre', 'gelezen', 'taal', 'land'] else 'bar' }}',
         data: {
-          labels: {{ chart_data.labels | tojson }},
+          labels: {{ chart_data.labels | tojson | safe }},
           datasets: [{
             label: '{{ chart_name.replace('_', ' ').title() }}',
-            data: {{ chart_data.data | tojson }},
+            data: {{ chart_data.data | tojson | safe }},
             backgroundColor: [
               '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
               '#FF9F40', '#FF5733', '#C70039', '#900C3F', '#581845'
@@ -147,38 +165,85 @@
           }
         }
       });
-    {% endfor %}
-
-    function showChart(chartName) {
-      const containers = document.querySelectorAll('.chart-container');
-      containers.forEach(container => {
-        container.style.display = container.id === chartName + '-container' ? 'block' : 'none';
-      });
+    } else {
+      console.warn('Geen data voor chart {{ chart_name }}');
+      document.getElementById('{{ chart_name }}-container').innerHTML = '<p class="text-center text-red-500">Geen data beschikbaar voor {{ chart_name.replace('_', ' ').title() }}.</p>';
     }
+  {% endfor %}
 
-    // Standaard de eerste grafiek tonen
-    const select = document.getElementById('chart-select');
-    if (select && select.options.length > 1) {
-      select.value = select.options[1].value;
-      showChart(select.value);
-    }
-
-    {% if fun_facts %}
-  const funFacts = {{ fun_facts | tojson }};
-  let currentFact = 0;
-  const factElement = document.getElementById("fun-fact-text");
-
-  function showNextFact() {
-    factElement.textContent = funFacts[currentFact];
-    currentFact = (currentFact + 1) % funFacts.length;
+  function showChart(chartName) {
+    console.log('Showing chart:', chartName);  // Debug
+    const containers = document.querySelectorAll('.chart-container');
+    containers.forEach(container => {
+      container.style.display = container.id === chartName + '-container' ? 'block' : 'none';
+    });
   }
 
-  // eerste direct tonen
-  showNextFact();
-  // elke 5 seconden wisselen
-  setInterval(showNextFact, 5000);
-{% endif %}
+  // Standaard de eerste grafiek tonen
+  const select = document.getElementById('chart-select');
+  if (select && select.options.length > 1) {
+    select.value = select.options[1].value;
+    showChart(select.value);
+  } else {
+    console.warn('Geen grafieken beschikbaar in dropdown');
+  }
 
-  </script>
+  {% if fun_facts %}
+    const funFacts = {{ fun_facts | tojson | safe }};
+    console.log('Fun facts loaded:', funFacts);  // Debug
+    let currentFact = 0;
+    const factElement = document.getElementById("fun-fact-text");
+    if (funFacts.length > 0) {
+      function showNextFact() {
+        factElement.textContent = funFacts[currentFact];
+        currentFact = (currentFact + 1) % funFacts.length;
+      }
+      showNextFact();
+      setInterval(showNextFact, 5000);
+    } else {
+      factElement.textContent = 'Geen fun facts beschikbaar.';
+      console.warn('Geen fun facts om te tonen');
+    }
+  {% else %}
+    document.getElementById("fun-fact-text").textContent = 'Geen fun facts beschikbaar.';
+    console.warn('Geen fun facts ontvangen van backend');
+  {% endif %}
+
+  const locationData = {{ charts.get('land', {'labels': [], 'data': []}) | tojson | safe }};
+  const locationCoords = {{ location_coords | tojson | safe }} || {};
+  console.log('Location data:', locationData);  // Debug
+  console.log('Location coords:', locationCoords);  // Debug
+
+  const map = L.map('map').setView([50.85, 4.35], 4);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  if (locationData.labels.length === 0 || Object.keys(locationCoords).length === 0) {
+    document.getElementById('map').innerHTML = '<p class="text-center text-red-500">Geen aankooplocaties beschikbaar. Voeg landinformatie toe aan boeken.</p>';
+    console.warn('Geen data voor kaart');
+  } else {
+    const bounds = [];
+    for (let i = 0; i < locationData.labels.length; i++) {
+      const loc = locationData.labels[i];
+      const count = locationData.data[i];
+      const coords = locationCoords[loc];
+      if (coords) {
+        L.circleMarker([coords[0], coords[1]], {
+          radius: 5 + count * 2,
+          color: '#ff0000',
+          fillOpacity: 0.6
+        }).bindPopup(`${loc}: ${count} boeken`).addTo(map);
+        bounds.push([coords[0], coords[1]]);
+      } else {
+        console.warn(`Geen coördinaten voor ${loc}`);
+      }
+    }
+    if (bounds.length > 0) {
+      map.fitBounds(bounds, { padding: [50, 50] });
+    }
+  }
+</script>
 </body>
 </html>

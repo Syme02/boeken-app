@@ -42,7 +42,9 @@ def load_csv_to_db(csv_source, overwrite=False):
             'Staat': 'staat', 'staat': 'staat',
             'Taal': 'taal', 'taal': 'taal',
             'Gesigneerd': 'gesigneerd', 'gesigneerd': 'gesigneerd',
-            'Gelezen': 'gelezen', 'gelezen': 'gelezen'
+            'Gelezen': 'gelezen', 'gelezen': 'gelezen',
+            'Gelezen': 'gelezen', 'gelezen': 'gelezen',
+            'Land': 'land', 'land': 'land'
         }
         
         df.columns = [column_mapping.get(col.strip(), col.lower()) for col in df.columns]
@@ -53,7 +55,7 @@ def load_csv_to_db(csv_source, overwrite=False):
         
         expected_columns = ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'prijs', 'paginas', 
                             'bindwijze', 'edition', 'isbn', 'reeks_nr', 'uitgeverij', 'serie', 'staat', 
-                            'taal', 'gesigneerd', 'gelezen']
+                            'taal', 'gesigneerd', 'gelezen', 'land']
         for col in expected_columns:
             if col not in df.columns:
                 df[col] = ''
@@ -87,8 +89,8 @@ def load_csv_to_db(csv_source, overwrite=False):
             for _, row in df.iterrows():
                 c.execute('''SELECT COUNT(*) FROM books WHERE titel = ? AND isbn = ?''', (row['titel'], row['isbn']))
                 if c.fetchone()[0] == 0:
-                    c.execute('''INSERT INTO books (titel, auteur_voornaam, auteur_achternaam, genre, prijs, paginas, bindwijze, edition, isbn, reeks_nr, uitgeverij, serie, staat, taal, gesigneerd, gelezen, added_date)
-                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', tuple(row))
+                    c.execute('''INSERT INTO books (titel, auteur_voornaam, auteur_achternaam, genre, prijs, paginas, bindwijze, edition, isbn, reeks_nr, uitgeverij, serie, staat, taal, gesigneerd, gelezen, added_date, land)
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', tuple(row))
             conn.commit()
             conn.close()
             return True, f"Succes: Nieuwe boeken toegevoegd uit CSV"
@@ -103,7 +105,7 @@ def search_books(filters):
     
     # Text-based filters
     for col in ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'uitgeverij', 'isbn', 
-                'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition']:
+                'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition', 'land']:
         value = filters.get(col, '').strip()
         if value:
             query += f" AND {col} LIKE ?"
@@ -173,14 +175,15 @@ def add_book(form):
         'taal': form.get('taal', ''),
         'gesigneerd': form.get('gesigneerd', ''),
         'gelezen': form.get('gelezen', ''),
-        'added_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        'added_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'land': form.get('land', '')
     }
     
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        c.execute('''INSERT INTO books (titel, auteur_voornaam, auteur_achternaam, genre, prijs, paginas, bindwijze, edition, isbn, reeks_nr, uitgeverij, serie, staat, taal, gesigneerd, gelezen, added_date)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+        c.execute('''INSERT INTO books (titel, auteur_voornaam, auteur_achternaam, genre, prijs, paginas, bindwijze, edition, isbn, reeks_nr, uitgeverij, serie, staat, taal, gesigneerd, gelezen, added_date, land)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                   tuple(data.values()))
         conn.commit()
         conn.close()
@@ -212,13 +215,14 @@ def edit_book(book_id, form):
         'taal': form.get('taal', ''),
         'gesigneerd': form.get('gesigneerd', ''),
         'gelezen': form.get('gelezen', ''),
-        'added_date': form.get('added_date', '')
+        'added_date': form.get('added_date', ''),
+        'land': form.get('land', '')
     }
     
     conn = get_db_connection()
     c = conn.cursor()
     try:
-        c.execute('''UPDATE books SET titel = ?, auteur_voornaam = ?, auteur_achternaam = ?, genre = ?, prijs = ?, paginas = ?, bindwijze = ?, edition = ?, isbn = ?, reeks_nr = ?, uitgeverij = ?, serie = ?, staat = ?, taal = ?, gesigneerd = ?, gelezen = ?, added_date = ?
+        c.execute('''UPDATE books SET titel = ?, auteur_voornaam = ?, auteur_achternaam = ?, genre = ?, prijs = ?, paginas = ?, bindwijze = ?, edition = ?, isbn = ?, reeks_nr = ?, uitgeverij = ?, serie = ?, staat = ?, taal = ?, gesigneerd = ?, gelezen = ?, added_date = ?, land = ?
                      WHERE id = ?''', tuple(data.values()) + (book_id,))
         conn.commit()
         conn.close()

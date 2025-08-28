@@ -30,7 +30,7 @@ def init_db():
                   taal TEXT,
                   gesigneerd TEXT,
                   gelezen TEXT,
-                  added_date TEXT)''')
+                  added_date TEXT, land TEXT)''')
     # create favorites
     c.execute('''CREATE TABLE IF NOT EXISTS user_likes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,7 +42,7 @@ def init_db():
     FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE CASCADE
 );
 ''')
-
+    # Voeg na bestaande ALTER TABLE checks:
     # Create users table
     c.execute('''CREATE TABLE IF NOT EXISTS users (
                  id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,6 +52,11 @@ def init_db():
                  color TEXT DEFAULT '#e31c73',
                  dark_mode INTEGER DEFAULT 1
              )''')
+    c.execute("PRAGMA table_info(books)")
+    columns = [col['name'] for col in c.fetchall()]
+    if 'land' not in columns:
+        print("Adding 'land' column to books table...")
+        c.execute("ALTER TABLE books ADD COLUMN land TEXT DEFAULT ''")
 
     # Add color and dark_mode columns if they don't exist
     c.execute("PRAGMA table_info(users)")
