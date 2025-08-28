@@ -42,6 +42,11 @@ def init_db():
     FOREIGN KEY(book_id) REFERENCES books(id) ON DELETE CASCADE
 );
 ''')
+    c.execute('''CREATE TABLE IF NOT EXISTS geocache (
+            location TEXT PRIMARY KEY,
+            lat REAL,
+            lon REAL
+        )''')
     # Voeg na bestaande ALTER TABLE checks:
     # Create users table
     c.execute('''CREATE TABLE IF NOT EXISTS users (

@@ -9,6 +9,7 @@ from geopy.geocoders import Nominatim
 from geopy.exc import GeocoderTimedOut
 import time
 import os
+import pandas as pd
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24).hex()
@@ -41,6 +42,11 @@ def inject_is_admin():
 
 # Initialize database
 init_db()
+
+def clean_geocache():
+    with db_transaction() as conn:
+        c = conn.cursor()
+        c.execute('''DELETE FROM geocache WHERE location NOT IN (SELECT DISTINCT land FROM books WHERE land IS NOT NULL AND land != '')''')
 
 def get_user_settings(user_id):
     conn = get_db_connection()
@@ -176,6 +182,7 @@ def index():
             form_data['prijs'] = form_data.get('min_prijs', '')  # Use min_prijs for editing
             form_data['paginas'] = form_data.get('min_paginas', '')  # Use min_paginas for editing
             success, message = update_book(book_id, form_data)
+            clean_geocache()
             flash(message, 'success' if success else 'error')
         
         filters = {col: request.form.get(col, '').strip() for col in 
@@ -325,6 +332,7 @@ def edit_book_view(book_id):
 @admin_required
 def delete_book_route(book_id):
     success, message = delete_book(book_id)
+    clean_geocache()
     flash(message, 'success' if success else 'error')
     return redirect(url_for('index'))
 
@@ -355,34 +363,32 @@ def statistics():
     settings = get_user_settings(user_id)
     conn = get_db_connection()
     try:
-        import pandas as pd
         df = pd.read_sql_query('SELECT * FROM books', conn)
-        print(f"Database query result: {len(df)} rows")  # Debug
-        print(f"Columns in dataframe: {df.columns.tolist()}")  # Debug
+        print(f"Database query result: {len(df)} rows")
+        print(f"Columns in dataframe: {df.columns.tolist()}")
     except Exception as e:
-        print(f"Database error: {str(e)}")  # Debug
+        print(f"Database error: {str(e)}")
         flash(f"Databasefout bij ophalen statistieken: {str(e)}", "error")
         conn.close()
         return render_template('statistics.html', charts={}, settings=settings, fun_facts=[], location_coords={})
-    
-    conn.close()
+
     charts = {}
     location_coords = {}
     fun_facts = []
-    
+
     if not df.empty:
         if "genre" in df.columns:
             genre_counts = df["genre"].value_counts().to_dict()
             charts['genre'] = {'labels': list(genre_counts.keys()), 'data': list(genre_counts.values())}
-            print(f"Genre chart: {charts['genre']}")  # Debug
+            print(f"Genre chart: {charts['genre']}")
         if "gelezen" in df.columns:
             gelezen_counts = df["gelezen"].value_counts().to_dict()
             charts['gelezen'] = {'labels': list(gelezen_counts.keys()), 'data': list(gelezen_counts.values())}
-            print(f"Gelezen chart: {charts['gelezen']}")  # Debug
+            print(f"Gelezen chart: {charts['gelezen']}")
         if "taal" in df.columns:
             taal_counts = df["taal"].value_counts().to_dict()
             charts['taal'] = {'labels': list(taal_counts.keys()), 'data': list(taal_counts.values())}
-            print(f"Taal chart: {charts['taal']}")  # Debug
+            print(f"Taal chart: {charts['taal']}")
         if "paginas" in df.columns:
             pages = df["paginas"].dropna()
             if not pages.empty:
@@ -392,43 +398,53 @@ def statistics():
                     'labels': [f"{int(interval.left)}-{int(interval.right)}" for interval in counts.index],
                     'data': counts.tolist()
                 }
-                print(f"Paginas chart: {charts['paginas']}")  # Debug
+                print(f"Paginas chart: {charts['paginas']}")
         if "auteur_voornaam" in df.columns and "auteur_achternaam" in df.columns:
             df["auteur"] = df["auteur_voornaam"] + " " + df["auteur_achternaam"]
             auteur_counts = df["auteur"].value_counts().head(10).to_dict()
             charts['auteur'] = {'labels': list(auteur_counts.keys()), 'data': list(auteur_counts.values())}
-            print(f"Auteur chart: {charts['auteur']}")  # Debug
+            print(f"Auteur chart: {charts['auteur']}")
         if "genre" in df.columns and "prijs" in df.columns:
             avg_price = df.groupby("genre")["prijs"].mean().to_dict()
             charts['avg_price'] = {'labels': list(avg_price.keys()), 'data': [round(v, 2) for v in avg_price.values()]}
-            print(f"Avg price chart: {charts['avg_price']}")  # Debug
+            print(f"Avg price chart: {charts['avg_price']}")
         if "land" in df.columns:
-            # Filter lege waarden
             land_counts = df[df["land"].notnull() & (df["land"] != '')]["land"].value_counts().to_dict()
             charts['land'] = {'labels': list(land_counts.keys()), 'data': list(land_counts.values())}
-            print(f"Land chart: {charts['land']}")  # Debug
-            # Geocoding voor landen
+            print(f"Aankoop stad chart: {charts['land']}")
+
+            # Geocoding met cache
+            c = conn.cursor()
             try:
-                from geopy.geocoders import Nominatim
-                from geopy.exc import GeocoderTimedOut
                 geolocator = Nominatim(user_agent="boeken_app")
                 for loc in land_counts.keys():
                     if loc and loc.strip():
-                        try:
-                            time.sleep(1)  # Voorkom rate limiting
-                            geo = geolocator.geocode(loc, timeout=5)
-                            if geo:
-                                location_coords[loc] = (geo.latitude, geo.longitude)
-                                print(f"Geocoded {loc}: {location_coords[loc]}")  # Debug
-                            else:
-                                print(f"Geen coördinaten voor {loc}")  # Debug
-                        except (GeocoderTimedOut, Exception) as e:
-                            print(f"Geocoding fout voor {loc}: {e}")  # Debug
-            except ImportError:
-                print("Geopy niet geïnstalleerd")  # Debug
-                flash("Geocoding niet beschikbaar; installeer geopy.", "error")
-            print(f"Location coords: {location_coords}")  # Debug
-    
+                        # Controleer cache
+                        c.execute('SELECT lat, lon FROM geocache WHERE location = ?', (loc,))
+                        result = c.fetchone()
+                        if result:
+                            location_coords[loc] = (result[0], result[1])
+                            print(f"Cached coords for {loc}: {location_coords[loc]}")
+                        else:
+                            # Nieuwe locatie geocoderen
+                            try:
+                                time.sleep(1)  # Rate limit
+                                geo = geolocator.geocode(loc, country_codes='nl,be,gb,it,de,at,ch', timeout=5)
+                                if geo:
+                                    location_coords[loc] = (geo.latitude, geo.longitude)
+                                    c.execute('INSERT INTO geocache (location, lat, lon) VALUES (?, ?, ?)', 
+                                              (loc, geo.latitude, geo.longitude))
+                                    conn.commit()
+                                    print(f"Geocoded and cached {loc}: {location_coords[loc]}")
+                                else:
+                                    print(f"Geen coördinaten voor {loc}")
+                            except (GeocoderTimedOut, Exception) as e:
+                                print(f"Geocoding fout voor {loc}: {e}")
+            except Exception as e:
+                print(f"Geocoding initialisatie fout: {e}")
+                flash("Geocoding niet beschikbaar; controleer geopy installatie.", "error")
+            print(f"Location coords: {location_coords}")
+
         # Fun facts
         if "paginas" in df.columns and df["paginas"].notna().any():
             dikste = df.loc[df["paginas"].idxmax()]
@@ -441,9 +457,10 @@ def statistics():
             if talen > 1:
                 fun_facts.append(f"Je hebt boeken in {talen} verschillende talen!")
         fun_facts.append(f"Totaal aantal boeken in je collectie: {len(df)}.")
-        print(f"Fun facts: {fun_facts}")  # Debug
-    return render_template('statistics.html', charts=charts, settings=settings, fun_facts=fun_facts, location_coords=location_coords)
+        print(f"Fun facts: {fun_facts}")
 
+    conn.close()
+    return render_template('statistics.html', charts=charts, settings=settings, fun_facts=fun_facts, location_coords=location_coords)
 
 @app.route('/settings', methods=['GET', 'POST'])
 @login_required
