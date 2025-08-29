@@ -29,7 +29,7 @@
     thead th { white-space: nowrap; }
     thead { position: sticky; top: 0; z-index: 10; }
     header { background-color: var(--background-color); color: var(--text-color); }
-    .logo { width: 40px; height: 40px; object-fit: contain; border: 1px solid var(--text-color); }
+    .logo { width: 52px; height: 52px; object-fit: contain; }
     @media (max-width: 640px) { .logo { width: 32px; height: 32px; } }
   </style>
 </head>
@@ -46,10 +46,8 @@
       <nav class="flex space-x-4 items-center">
         <a href="{{ url_for('index') }}" class="px-4 py-2 rounded-md font-medium link-primary">Boeken Zoeken</a>
         <a href="{{ url_for('statistics') }}" class="px-4 py-2 rounded-md font-medium link-primary">Grafieken</a>
-
         {% if session.username %}
-        <a href="{{ url_for('mijn_boekenlijst') }}" class="px-4 py-2 rounded-md font-medium link-primary">Mijn Boekenlijst</a>
-
+          <a href="{{ url_for('mijn_boekenlijst') }}" class="px-4 py-2 rounded-md font-medium link-primary">Mijn Boekenlijst</a>
           <a href="{{ url_for('settings') }}" class="px-4 py-2 rounded-md font-medium link-primary">Instellingen</a>
           <span class="text-sm">Ingelogd als: {{ session.username }} ({{ session.role }})</span>
           <a href="{{ url_for('logout') }}" class="px-4 py-2 rounded-md btn-primary">Uitloggen</a>
@@ -80,17 +78,46 @@
     <div class="card rounded-xl shadow-sm p-6 flex-1">
       <h2 class="text-2xl font-bold mb-4">Zoeken{% if edit_book_data %} of Boek Bewerken{% else %}{% if is_admin %} of Boek Toevoegen{% endif %}{% endif %}</h2>
 
+      <!-- Boekkaft -->
+      <div id="coverSection" class="hidden mb-6">
+        <h3 class="text-lg font-semibold mb-2">Boekkaft</h3>
+        <img id="coverImage" src="" alt="Boekkaft" class="max-w-xs rounded shadow-md" />
+      </div> 
+
       <!-- Zoekformulier -->
       <form id="searchForm" method="POST" class="mb-6">
         <input type="hidden" name="action" id="form_action" value="search">
         <input type="hidden" name="book_id" id="book_id" value="{{ edit_book_data.book_id if edit_book_data else '' }}">
         <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          {% for field in ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'uitgeverij', 'isbn', 'reeks_nr', 'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition'] %}
+        {% for field in ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'uitgeverij', 'isbn', 'reeks_nr', 'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition'] %}
             <div class="flex flex-col">
-              <label for="{{ field }}" class="block text-sm font-medium">{{ field.replace('_', ' ').title() }}</label>
-              <input type="text" id="{{ field }}" name="{{ field }}" value="{{ edit_book_data[field] if edit_book_data and field in edit_book_data else filters[field] if field in filters else '' }}" class="mt-1 block w-full rounded-md shadow-sm input-base px-3 py-2" />
+                <label for="{{ field }}" class="block text-sm font-medium">{{ field.replace('_', ' ').title() }}</label>
+                <input type="text" id="{{ field }}" name="{{ field }}" 
+                       value="{{ edit_book_data[field] if edit_book_data and field in edit_book_data else filters[field] if field in filters else '' }}" 
+                       class="mt-1 block w-full rounded-md shadow-sm input-base px-3 py-2" 
+                       placeholder="{{ {
+                           'titel': 'Titel van het boek',
+                           'auteur_voornaam': 'Auteur voornaam',
+                           'auteur_achternaam': 'Auteur achternaam',
+                           'genre': 'Genre van het boek',
+                           'uitgeverij': 'Naam van uitgeverij',
+                           'isbn': 'isbn van het boek',
+                           'reeks_nr': 'Reeks nummer van boek',
+                           'serie': 'vb. stanalone, serie, trilogie, ...',
+                           'staat': 'Staat van het boek',
+                           'taal': 'Taal van het boek',
+                           'gesigneerd': 'Ja / Neen',
+                           'gelezen': 'Ja / Neen ',
+                           'bindwijze': 'bv. Paperback, Hardcover',
+                           'edition': 'bv. First edition'
+                       }[field] }}" />
             </div>
-          {% endfor %}
+        {% endfor %}
+          <!-- Aankoop Locatie -->
+          <div class="flex flex-col">
+            <label for="land" class="block text-sm font-medium">Aankoop Locatie (Stad of Land)</label>
+            <input type="text" id="land" name="land" value="{{ edit_book_data.land if edit_book_data else filters.land if 'land' in filters else '' }}" class="mt-1 block w-full rounded-md shadow-sm input-base px-3 py-2" placeholder="bijv. Antwerpen, België" />
+          </div>
           <!-- Prijs -->
           <div class="flex flex-col">
             <label class="block text-sm font-medium">Prijs</label>
@@ -160,6 +187,7 @@
               <th class="px-3 py-2 text-left text-sm font-semibold">Taal</th>
               <th class="px-3 py-2 text-left text-sm font-semibold">Gesigneerd</th>
               <th class="px-3 py-2 text-left text-sm font-semibold">Gelezen</th>
+              <th class="px-3 py-2 text-left text-sm font-semibold">Aankoop Locatie (Stad of Land)</th>
               <th class="px-3 py-2 text-left text-sm font-semibold">Acties</th>
             </tr>
           </thead>
@@ -193,6 +221,7 @@
                 <td class="px-3 py-2 text-sm">{{ book[14] }}</td>
                 <td class="px-3 py-2 text-sm">{{ book[15] }}</td>
                 <td class="px-3 py-2 text-sm">{{ book[16] }}</td>
+                <td class="px-3 py-2 text-sm">{{ book[18] }}</td>
                 <td class="px-3 py-2 text-sm">
                   {% if is_admin %}
                     <a href="{{ url_for('edit_book', book_id=book[0]) }}" class="link-primary">Bewerken</a> |
@@ -214,186 +243,172 @@
   </div>
 
   <script>
-  const searchForm = document.getElementById('searchForm');
-  const inputs = searchForm.querySelectorAll('input');
-  const coverSection = document.getElementById('coverSection');
-  const coverImage = document.getElementById('coverImage');
-  const totalBooks = document.getElementById('totalBooks');
-  const totalPriceEl = document.getElementById('totalPrice');
-  const totalPagesEl = document.getElementById('totalPages');
-  let debounceTimeout; 
-  let coverDebounceTimeout;
+    const searchForm = document.getElementById('searchForm');
+    const inputs = searchForm.querySelectorAll('input');
+    const coverSection = document.getElementById('coverSection');
+    const coverImage = document.getElementById('coverImage');
+    const totalBooks = document.getElementById('totalBooks');
+    const totalPriceEl = document.getElementById('totalPrice');
+    const totalPagesEl = document.getElementById('totalPages');
+    let debounceTimeout; 
+    let coverDebounceTimeout;
 
-  // Flash messages dynamisch tonen
-  function showFlashMessage(message, category) {
-    const flashContainer = document.querySelector('.flash-container') || (() => { 
-      const el=document.createElement('div'); 
-      el.className='flash-container space-y-2 mb-4'; 
-      searchForm.parentNode.insertBefore(el, searchForm); 
-      return el; 
-    })();
-    const flashMessage = document.createElement('div');
-    flashMessage.className = `p-3 rounded-lg text-white shadow-md ${category==='success'?'bg-green-600':category==='error'?'bg-red-600':'bg-blue-600'}`;
-    flashMessage.textContent = message; 
-    flashContainer.appendChild(flashMessage);
-    setTimeout(() => flashMessage.remove(), 5000);
-  }
-
-  // Boekkaft ophalen
-  function fetchCover(titel, isbn) {
-    if (!titel && !isbn) { 
-      coverSection.classList.add('hidden'); 
-      return; 
+    // Flash messages dynamisch tonen
+    function showFlashMessage(message, category) {
+      const flashContainer = document.querySelector('.flash-container') || (() => { 
+        const el = document.createElement('div'); 
+        el.className = 'flash-container space-y-2 mb-4'; 
+        searchForm.parentNode.insertBefore(el, searchForm); 
+        return el; 
+      })();
+      const flashMessage = document.createElement('div');
+      flashMessage.className = `p-3 rounded-lg text-white shadow-md ${category === 'success' ? 'bg-green-600' : category === 'error' ? 'bg-red-600' : 'bg-blue-600'}`;
+      flashMessage.textContent = message; 
+      flashContainer.appendChild(flashMessage);
+      setTimeout(() => flashMessage.remove(), 5000);
     }
+
+function fetchCover(titel, isbn) {
+    if (!titel && !isbn) { coverSection.classList.add('hidden'); return; }
     const body = new URLSearchParams({ titel: titel || '', isbn: isbn || '' });
-    fetch('/fetch_cover', { method:'POST', body })
-      .then(r=>r.json())
-      .then(data=>{
-        showFlashMessage(data.message, data.category);
-        if (data.cover_url) { 
-          coverImage.src = data.cover_url; 
-          coverSection.classList.remove('hidden'); 
-        } else { 
-          coverSection.classList.add('hidden'); 
-        }
-      })
-      .catch(()=> showFlashMessage('Fout bij ophalen boekkaft.','error'));
-  }
+    fetch('/fetch_cover', { method: 'POST', body })
+        .then(r => r.json())
+        .then(data => {
+            showFlashMessage(data.message, data.category);
+            if (data.cover_url) {
+                coverImage.src = data.cover_url;
+                coverSection.classList.remove('hidden');
+            } else {
+                coverSection.classList.add('hidden');
+            }
+            if (titel) {
+                document.getElementById('titel').value = titel;  // Vul land-veld
+            }
+        })
+        .catch(() => showFlashMessage('Fout bij ophalen boekkaft.', 'error'));
+}
 
-  // Boek liken/unliken
-  function toggleLike(bookId) {
-    fetch(`/like/${bookId}`, { method: 'POST' })
-      .then(response => {
-        if (response.status === 401) {
-          alert("Je moet inloggen om boeken te liken!");
-          return null;
-        }
-        return response.json();
-      })
-      .then(data => {
-        if (data && data.success) {
-          const btn = document.querySelector(`button[onclick="toggleLike(${bookId})"]`);
-          btn.innerHTML = data.liked ? "❤️" : "🤍";
-        }
-      })
-      .catch(err => console.error(err));
-  }
+    // Boek liken/unliken
+    function toggleLike(bookId) {
+      fetch(`/like/${bookId}`, { method: 'POST' })
+        .then(response => {
+          if (response.status === 401) {
+            alert("Je moet inloggen om boeken te liken!");
+            return null;
+          }
+          return response.json();
+        })
+        .then(data => {
+          if (data && data.success) {
+            const btn = document.querySelector(`button[onclick="toggleLike(${bookId})"]`);
+            btn.innerHTML = data.liked ? "❤️" : "🤍";
+          }
+        })
+        .catch(err => console.error(err));
+    }
 
-  // Helpers
-  function formatCurrency(value){ 
-    try{ 
-      const v=Number(value)||0; 
-      return v.toFixed(2); 
-    }catch{ return '0.00'; } 
-  }
+    // Helpers
+    function formatCurrency(value) { 
+      try { 
+        const v = Number(value) || 0; 
+        return v.toFixed(2); 
+      } catch { return '0.00'; } 
+    }
 
-  // Boekenlijst dynamisch updaten (AJAX search)
-  function updateBooks() {
-    const formData = {};
-    inputs.forEach(input => {
-      const v=input.value.trim();
-      if(v && input.name !== 'action' && input.name !== 'book_id') formData[input.name]=v;
+    // Boekenlijst dynamisch updaten (AJAX search)
+    function updateBooks() {
+      const formData = {};
+      inputs.forEach(input => {
+        const v = input.value.trim();
+        if (v && input.name !== 'action' && input.name !== 'book_id') formData[input.name] = v;
+      });
+
+      fetch('/search', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify(formData)
+      })
+        .then(r => r.json())
+        .then(books => {
+          const tbody = document.getElementById('booksTable'); 
+          tbody.innerHTML = '';
+          let sumPrice = 0; 
+          let sumPages = 0;
+
+          books.forEach((book, i) => {
+            sumPrice += Number(book.prijs) || 0; 
+            sumPages += Number(book.paginas) || 0;
+
+            const tr = document.createElement('tr');
+            tr.style.backgroundColor = (i % 2 === 0) ? 'var(--row-even)' : 'var(--row-odd)';
+
+            tr.innerHTML = `
+              <td class='px-3 py-2 text-sm'>
+                <button onclick="toggleLike(${book.id})" class="like-btn">
+                  ${book.liked ? "❤️" : "🤍"}
+                </button>
+              </td>
+              <td class='px-3 py-2 text-sm'>${i + 1}</td>
+              <td class='px-3 py-2 text-sm'>${book.titel || ''}</td>
+              <td class='px-3 py-2 text-sm'>${(book.auteur_voornaam || '')} ${(book.auteur_achternaam || '')}</td>
+              <td class='px-3 py-2 text-sm'>${book.genre || ''}</td>
+              <td class='px-3 py-2 text-sm'>${formatCurrency(book.prijs)}</td>
+              <td class='px-3 py-2 text-sm'>${book.paginas || ''}</td>
+              <td class='px-3 py-2 text-sm'>${book.bindwijze || ''}</td>
+              <td class='px-3 py-2 text-sm'>${book.edition || ''}</td>
+              <td class='px-3 py-2 text-sm'>${book.isbn || ''}</td>
+              <td class='px-3 py-2 text-sm'>${book.reeks_nr || ''}</td>
+              <td class='px-3 py-2 text-sm'>${book.uitgeverij || ''}</td>
+              <td class='px-3 py-2 text-sm'>${book.serie || ''}</td>
+              <td class='px-3 py-2 text-sm'>${book.staat || ''}</td>
+              <td class='px-3 py-2 text-sm'>${book.taal || ''}</td>
+              <td class='px-3 py-2 text-sm'>${book.gesigneerd || ''}</td>
+              <td class='px-3 py-2 text-sm'>${book.gelezen || ''}</td>
+              <td class='px-3 py-2 text-sm'>${book.land || ''}</td>
+              <td class='px-3 py-2 text-sm'>
+                ${book.is_admin ? `
+                  <a href='/edit/${book.id}' class='link-primary'>Bewerken</a> |
+                  <form action='/delete/${book.id}' method='POST' style='display:inline;'>
+                    <button type='submit' class='link-primary' onclick='return confirm("Weet je zeker dat je dit boek wilt verwijderen?")'>Verwijderen</button>
+                  </form>` 
+                : `<span class='text-gray-500'>Geen rechten</span>`}
+              </td>`;
+            tbody.appendChild(tr);
+          });
+
+          // Totals updaten
+          totalBooks.textContent = books.length;
+          totalPriceEl.textContent = formatCurrency(sumPrice);
+          totalPagesEl.textContent = sumPages;
+
+          // Boekkaft tonen bij 1 resultaat
+          if (books.length === 1) {
+            clearTimeout(coverDebounceTimeout);
+            coverDebounceTimeout = setTimeout(() => fetchCover(books[0].titel, books[0].isbn), 500);
+          } else {
+            coverSection.classList.add('hidden');
+          }
+        })
+        .catch(() => showFlashMessage('Fout bij zoeken.', 'error'));
+    }
+
+    // Event listeners
+    inputs.forEach(input => 
+      input.addEventListener('input', () => {
+        clearTimeout(debounceTimeout); 
+        debounceTimeout = setTimeout(updateBooks, 300);
+      })
+    );
+
+    searchForm.addEventListener('submit', (e) => {
+      if (e.submitter && document.getElementById('form_action').value === 'search') {
+        e.preventDefault();
+        const fd = new FormData(searchForm);
+        fetchCover((fd.get('titel') || '').trim(), (fd.get('isbn') || '').trim());
+        updateBooks();
+      }
     });
 
-    fetch('/search',{ 
-      method:'POST', 
-      headers:{'Content-Type':'application/json'}, 
-      body:JSON.stringify(formData)
-    })
-      .then(r=>r.json())
-      .then(books=>{
-        const tbody=document.getElementById('booksTable'); 
-        tbody.innerHTML='';
-        let sumPrice=0; 
-        let sumPages=0;
-
-        books.forEach((book,i)=>{
-          sumPrice += Number(book.prijs)||0; 
-          sumPages += Number(book.paginas)||0;
-
-          const tr=document.createElement('tr');
-          tr.style.backgroundColor = (i%2===0)?'var(--row-even)':'var(--row-odd)';
-
-          // bouw de rij HTML op
-          tr.innerHTML=`
-            <td class='px-3 py-2 text-sm'>
-              <button onclick="toggleLike(${book.id})" class="like-btn">
-                ${book.liked ? "❤️" : "🤍"}
-              </button>
-            </td>
-            <td class='px-3 py-2 text-sm'>${i+1}</td>
-            <td class='px-3 py-2 text-sm'>${book.titel||''}</td>
-            <td class='px-3 py-2 text-sm'>${(book.auteur_voornaam||'')} ${(book.auteur_achternaam||'')}</td>
-            <td class='px-3 py-2 text-sm'>${book.genre||''}</td>
-            <td class='px-3 py-2 text-sm'>${formatCurrency(book.prijs)}</td>
-            <td class='px-3 py-2 text-sm'>${book.paginas||''}</td>
-            <td class='px-3 py-2 text-sm'>${book.bindwijze||''}</td>
-            <td class='px-3 py-2 text-sm'>${book.edition||''}</td>
-            <td class='px-3 py-2 text-sm'>${book.isbn||''}</td>
-            <td class='px-3 py-2 text-sm'>${book.reeks_nr||''}</td>
-            <td class='px-3 py-2 text-sm'>${book.uitgeverij||''}</td>
-            <td class='px-3 py-2 text-sm'>${book.serie||''}</td>
-            <td class='px-3 py-2 text-sm'>${book.staat||''}</td>
-            <td class='px-3 py-2 text-sm'>${book.taal||''}</td>
-            <td class='px-3 py-2 text-sm'>${book.gesigneerd||''}</td>
-            <td class='px-3 py-2 text-sm'>${book.gelezen||''}</td>
-            <td class='px-3 py-2 text-sm'>
-              ${book.is_admin ? `
-                <a href='/edit/${book.id}' class='link-primary'>Bewerken</a> |
-                <form action='/delete/${book.id}' method='POST' style='display:inline;'>
-                  <button type='submit' class='link-primary' onclick='return confirm("Weet je zeker dat je dit boek wilt verwijderen?")'>Verwijderen</button>
-                </form>` 
-              : `<span class='text-gray-500'>Geen rechten</span>`}
-            </td>`;
-          tbody.appendChild(tr);
-        });
-
-<<<<<<< HEAD
-        // Boekkaft ophalen bij zoeken
-        searchForm.addEventListener('submit', (e) => {
-            if (e.submitter.value === 'search') {
-                e.preventDefault(); // Voorkom standaard formulierverzending
-                const formData = new FormData(searchForm);
-                const title = formData.get('titel')?.trim();
-                const isbn = formData.get('isbn')?.trim();
-                fetchCover(title, isbn);
-                updateBooks(); // Update de tabel
-            }
-        });
-    </script>
+  </script>
 </body>
 </html>
-m
-=======
-        // totals updaten
-        totalBooks.textContent=books.length;
-        totalPriceEl.textContent=formatCurrency(sumPrice);
-        totalPagesEl.textContent=sumPages;
-
-        // boekkaft tonen bij 1 resultaat
-        if(books.length===1){
-          clearTimeout(coverDebounceTimeout);
-          coverDebounceTimeout=setTimeout(()=>fetchCover(books[0].titel, books[0].isbn), 500);
-        } else { coverSection.classList.add('hidden'); }
-      })
-      .catch(()=>showFlashMessage('Fout bij zoeken.','error'));
-  }
-
-  // Event listeners
-  inputs.forEach(input=> 
-    input.addEventListener('input', ()=>{
-      clearTimeout(debounceTimeout); 
-      debounceTimeout=setTimeout(updateBooks, 300);
-    })
-  );
-
-  searchForm.addEventListener('submit', (e)=>{
-    if (e.submitter && document.getElementById('form_action').value === 'search') {
-      e.preventDefault();
-      const fd=new FormData(searchForm);
-      fetchCover((fd.get('titel')||'').trim(), (fd.get('isbn')||'').trim());
-      updateBooks();
-    }
-  });
-</script>
->>>>>>> 7b27123b4ad630ecb94483bbc6c34d181b2a5b2a

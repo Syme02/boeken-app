@@ -9,7 +9,11 @@ from models.database import init_db, get_db_connection
 from models.book import load_csv_to_db, search_books, add_book, edit_book as update_book, delete_book
 from models.book import toggle_like, get_user_likes, get_books_by_ids
 from models.user import register_user, login_user, is_admin
+from geopy.geocoders import Nominatim
+from geopy.exc import GeocoderTimedOut
+import time
 import os
+import pandas as pd
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24).hex()
@@ -42,6 +46,11 @@ def inject_is_admin():
 
 # Initialize database
 init_db()
+
+def clean_geocache():
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute('''DELETE FROM geocache WHERE location NOT IN (SELECT DISTINCT land FROM books WHERE land IS NOT NULL AND land != '')''')
 
 def get_user_settings(user_id):
     conn = get_db_connection()
@@ -177,11 +186,12 @@ def index():
             form_data['prijs'] = form_data.get('min_prijs', '')  # Use min_prijs for editing
             form_data['paginas'] = form_data.get('min_paginas', '')  # Use min_paginas for editing
             success, message = update_book(book_id, form_data)
+            clean_geocache()
             flash(message, 'success' if success else 'error')
         
         filters = {col: request.form.get(col, '').strip() for col in 
                    ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'uitgeverij', 'isbn', 
-                    'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition',
+                    'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition', 'land',
                     'min_prijs', 'max_prijs', 'min_paginas', 'max_paginas'] if request.form.get(col, '').strip()}
         books = search_books(filters)
     
@@ -193,14 +203,30 @@ def index():
             book = c.fetchone()
             if book:
                 edit_book_data = {
-                    'book_id': book[0], 'titel': book[1], 'auteur_voornaam': book[2], 'auteur_achternaam': book[3],
-                    'genre': book[4], 'min_prijs': book[5], 'min_paginas': book[6], 'bindwijze': book[7],
-                    'edition': book[8], 'isbn': book[9], 'reeks_nr': book[10], 'uitgeverij': book[11],
-                    'serie': book[12], 'staat': book[13], 'taal': book[14], 'gesigneerd': book[15],
-                    'gelezen': book[16], 'added_date': book[17]
+                    'book_id': book['id'],
+                    'titel': book['titel'],
+                    'auteur_voornaam': book['auteur_voornaam'],
+                    'auteur_achternaam': book['auteur_achternaam'],
+                    'genre': book['genre'],
+                    'min_prijs': book['prijs'],  # Voor form
+                    'min_paginas': book['paginas'],  # Voor form
+                    'bindwijze': book['bindwijze'],
+                    'edition': book['edition'],
+                    'isbn': book['isbn'],
+                    'reeks_nr': book['reeks_nr'],
+                    'uitgeverij': book['uitgeverij'],
+                    'serie': book['serie'],
+                    'staat': book['staat'],
+                    'taal': book['taal'],
+                    'gesigneerd': book['gesigneerd'],
+                    'gelezen': book['gelezen'],
+                    'land': book['land'],  # Voeg toe
+                    'added_date': book['added_date']
                 }
+                print(f"Edit book data loaded: {edit_book_data}")  # Debug
             else:
                 flash("Boek niet gevonden!", "error")
+                print(f"Book ID {book_id} not found")  # Debug
         
         books = search_books({})
 
@@ -208,7 +234,7 @@ def index():
     import pandas as pd
     df = pd.DataFrame(books, columns=['id', 'titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'prijs', 
                                      'paginas', 'bindwijze', 'edition', 'isbn', 'reeks_nr', 'uitgeverij', 'serie', 
-                                     'staat', 'taal', 'gesigneerd', 'gelezen', 'added_date'])
+                                     'staat', 'taal', 'gesigneerd', 'gelezen', 'added_date', 'land'])
     total_price = df['prijs'].sum() if not df.empty else 0
     total_pages = df['paginas'].sum() if not df.empty else 0
     
@@ -220,43 +246,42 @@ def index():
                        settings=settings, 
                        edit_book_data=edit_book_data,
                        user_likes=user_likes)
-
-@app.route('/mijn_boeken')
-@login_required
-def mijn_boeken():
-    user_id = session['user_id']
-    liked_ids = get_user_likes(user_id)
-
-    conn = get_db_connection()
-    c = conn.cursor()
-    if liked_ids:
-        qmarks = ",".join("?"*len(liked_ids))
-        c.execute(f"SELECT * FROM books WHERE id IN ({qmarks})", liked_ids)
-        books = c.fetchall()
-    else:
-        books = []
-    conn.close()
-
-    return render_template('mijn_boeken.html', books=books, settings=get_user_settings(user_id))
-
 @app.route("/mijn_boekenlijst")
 def mijn_boekenlijst():
     if "user_id" not in session:
-        # als niet ingelogd → terug naar login
         return redirect(url_for("login"))
 
     user_id = session["user_id"]
+
     liked_ids = get_user_likes(user_id)
-    books = get_books_by_ids(liked_ids)
+    books = get_books_by_ids(liked_ids)  # lijst van tuples
+
+    settings = get_user_settings(user_id)
+
+    # Correct voor tuples
+    total_price = sum(book[5] or 0 for book in books)
+    total_pages = sum(book[6] or 0 for book in books)
+
+    filters = {}
+    is_admin = session.get("role") == "admin"
+    edit_book_data = None
+    user_likes = liked_ids
 
     return render_template(
         "mijn_boekenlijst.html",
-        books=books
+        books=books,
+        total_price=total_price,
+        total_pages=total_pages,
+        filters=filters,
+        is_admin=is_admin,
+        edit_book_data=edit_book_data,
+        user_likes=user_likes,
+        settings=settings
     )
-
 
 @app.route('/search', methods=['POST'])
 def search():
+    is_admin = session.get("role") == "admin"
     filters = request.get_json() or {}
     books = search_books(filters)
     return jsonify([{
@@ -264,7 +289,7 @@ def search():
         'genre': book[4], 'prijs': book[5], 'paginas': book[6], 'bindwijze': book[7],
         'edition': book[8], 'isbn': book[9], 'reeks_nr': book[10], 'uitgeverij': book[11],
         'serie': book[12], 'staat': book[13], 'taal': book[14], 'gesigneerd': book[15],
-        'gelezen': book[16], 'added_date': book[17]
+        'gelezen': book[16], 'added_date': book[17], 'land': book[18], 'is_admin' : is_admin
     } for book in books])
 
 @app.route('/fetch_cover', methods=['POST'])
@@ -277,21 +302,27 @@ def fetch_cover():
     
     query = f"isbn:{isbn.replace('-', '')}" if isbn else f"intitle:{title.replace(' ', '+')}"
     try:
-        response = requests.get(f"https://www.googleapis.com/books/v1/volumes?q={query}", timeout=3)
+        response = requests.get(f"https://www.googleapis.com/books/v1/volumes?q={query}", timeout=5)
         if response.status_code == 200:
             data = response.json()
             if data["totalItems"] > 0:
                 book = data["items"][0]["volumeInfo"]
                 cover_url = book.get("imageLinks", {}).get("thumbnail", "")
+                country = data["items"][0].get("saleInfo", {}).get("country", "")  # ISO-code (bijv. NL, BE)
+                # Map ISO-code naar volledige naam (optioneel)
+                country_map = {'NL': 'Nederland', 'BE': 'België', 'DE': 'Duitsland', 'FR': 'Frankrijk', 'ES': 'Spanje', 'IT': 'Italië'}
+                country_name = country_map.get(country, country or 'Onbekend')
                 return jsonify({
                     'cover_url': cover_url,
+                    'land': country_name,  # Voor invullen in formulier
                     'message': 'Boekkaft opgehaald!' if cover_url else 'Geen boekkaft gevonden.',
                     'category': 'success' if cover_url else 'info'
                 })
-            return jsonify({'cover_url': '', 'message': 'Geen boek gevonden in Google Books API.', 'category': 'info'})
-        return jsonify({'cover_url': '', 'message': f'Fout bij extern zoeken: HTTP {response.status_code}', 'category': 'error'})
+            return jsonify({'cover_url': '', 'land': '', 'message': 'Geen boek gevonden in Google Books API.', 'category': 'info'})
+        return jsonify({'cover_url': '', 'land': '', 'message': f'Fout bij extern zoeken: HTTP {response.status_code}', 'category': 'error'})
     except requests.exceptions.RequestException as e:
-        return jsonify({'cover_url': '', 'message': f'Fout bij extern zoeken: {str(e)}', 'category': 'error'})
+        print(f"Error fetching cover: {str(e)}")
+        return jsonify({'cover_url': '', 'land': '', 'message': f'Fout bij extern zoeken: {str(e)}', 'category': 'error'})
 
 @app.route('/edit/<int:book_id>', methods=['GET'], endpoint='edit_book')
 @admin_required
@@ -303,6 +334,7 @@ def edit_book_view(book_id):
 @admin_required
 def delete_book_route(book_id):
     success, message = delete_book(book_id)
+    clean_geocache()
     flash(message, 'success' if success else 'error')
     return redirect(url_for('index'))
 
@@ -333,25 +365,32 @@ def statistics():
     settings = get_user_settings(user_id)
     conn = get_db_connection()
     try:
-        import pandas as pd
         df = pd.read_sql_query('SELECT * FROM books', conn)
+        print(f"Database query result: {len(df)} rows")
+        print(f"Columns in dataframe: {df.columns.tolist()}")
     except Exception as e:
+        print(f"Database error: {str(e)}")
         flash(f"Databasefout bij ophalen statistieken: {str(e)}", "error")
         conn.close()
-        return render_template('statistics.html', charts={}, settings=settings)
-    
-    conn.close()
+        return render_template('statistics.html', charts={}, settings=settings, fun_facts=[], location_coords={})
+
     charts = {}
+    location_coords = {}
+    fun_facts = []
+
     if not df.empty:
         if "genre" in df.columns:
             genre_counts = df["genre"].value_counts().to_dict()
             charts['genre'] = {'labels': list(genre_counts.keys()), 'data': list(genre_counts.values())}
+            print(f"Genre chart: {charts['genre']}")
         if "gelezen" in df.columns:
             gelezen_counts = df["gelezen"].value_counts().to_dict()
             charts['gelezen'] = {'labels': list(gelezen_counts.keys()), 'data': list(gelezen_counts.values())}
+            print(f"Gelezen chart: {charts['gelezen']}")
         if "taal" in df.columns:
             taal_counts = df["taal"].value_counts().to_dict()
             charts['taal'] = {'labels': list(taal_counts.keys()), 'data': list(taal_counts.values())}
+            print(f"Taal chart: {charts['taal']}")
         if "paginas" in df.columns:
             pages = df["paginas"].dropna()
             if not pages.empty:
@@ -361,15 +400,69 @@ def statistics():
                     'labels': [f"{int(interval.left)}-{int(interval.right)}" for interval in counts.index],
                     'data': counts.tolist()
                 }
+                print(f"Paginas chart: {charts['paginas']}")
         if "auteur_voornaam" in df.columns and "auteur_achternaam" in df.columns:
             df["auteur"] = df["auteur_voornaam"] + " " + df["auteur_achternaam"]
             auteur_counts = df["auteur"].value_counts().head(10).to_dict()
             charts['auteur'] = {'labels': list(auteur_counts.keys()), 'data': list(auteur_counts.values())}
+            print(f"Auteur chart: {charts['auteur']}")
         if "genre" in df.columns and "prijs" in df.columns:
             avg_price = df.groupby("genre")["prijs"].mean().to_dict()
             charts['avg_price'] = {'labels': list(avg_price.keys()), 'data': [round(v, 2) for v in avg_price.values()]}
+            print(f"Avg price chart: {charts['avg_price']}")
+        if "land" in df.columns:
+            land_counts = df[df["land"].notnull() & (df["land"] != '')]["land"].value_counts().to_dict()
+            charts['land'] = {'labels': list(land_counts.keys()), 'data': list(land_counts.values())}
+            print(f"Aankoop stad chart: {charts['land']}")
 
-    return render_template('statistics.html', charts=charts, settings=settings)
+            # Geocoding met cache
+            c = conn.cursor()
+            try:
+                geolocator = Nominatim(user_agent="boeken_app")
+                for loc in land_counts.keys():
+                    if loc and loc.strip():
+                        # Controleer cache
+                        c.execute('SELECT lat, lon FROM geocache WHERE location = ?', (loc,))
+                        result = c.fetchone()
+                        if result:
+                            location_coords[loc] = (result[0], result[1])
+                            print(f"Cached coords for {loc}: {location_coords[loc]}")
+                        else:
+                            # Nieuwe locatie geocoderen
+                            try:
+                                time.sleep(1)  # Rate limit
+                                geo = geolocator.geocode(loc, country_codes='nl,be,gb,it,de,at,ch', timeout=5)
+                                if geo:
+                                    location_coords[loc] = (geo.latitude, geo.longitude)
+                                    c.execute('INSERT INTO geocache (location, lat, lon) VALUES (?, ?, ?)', 
+                                              (loc, geo.latitude, geo.longitude))
+                                    conn.commit()
+                                    print(f"Geocoded and cached {loc}: {location_coords[loc]}")
+                                else:
+                                    print(f"Geen coördinaten voor {loc}")
+                            except (GeocoderTimedOut, Exception) as e:
+                                print(f"Geocoding fout voor {loc}: {e}")
+            except Exception as e:
+                print(f"Geocoding initialisatie fout: {e}")
+                flash("Geocoding niet beschikbaar; controleer geopy installatie.", "error")
+            print(f"Location coords: {location_coords}")
+
+        # Fun facts
+        if "paginas" in df.columns and df["paginas"].notna().any():
+            dikste = df.loc[df["paginas"].idxmax()]
+            fun_facts.append(f"Je dikste boek is '{dikste['titel']}' met {int(dikste['paginas'])} pagina’s.")
+        if "prijs" in df.columns and df["prijs"].notna().any():
+            duurste = df.loc[df["prijs"].idxmax()]
+            fun_facts.append(f"Het duurste boek in je collectie is '{duurste['titel']}' voor €{round(duurste['prijs'],2)}.")
+        if "taal" in df.columns:
+            talen = df["taal"].nunique()
+            if talen > 1:
+                fun_facts.append(f"Je hebt boeken in {talen} verschillende talen!")
+        fun_facts.append(f"Totaal aantal boeken in je collectie: {len(df)}.")
+        print(f"Fun facts: {fun_facts}")
+
+    conn.close()
+    return render_template('statistics.html', charts=charts, settings=settings, fun_facts=fun_facts, location_coords=location_coords)
 
 @app.route('/settings', methods=['GET', 'POST'])
 @login_required
