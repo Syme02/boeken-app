@@ -44,7 +44,7 @@ def inject_is_admin():
 init_db()
 
 def clean_geocache():
-    with db_transaction() as conn:
+    with get_db_connection as conn:
         c = conn.cursor()
         c.execute('''DELETE FROM geocache WHERE location NOT IN (SELECT DISTINCT land FROM books WHERE land IS NOT NULL AND land != '')''')
 
