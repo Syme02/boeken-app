@@ -44,7 +44,7 @@ def inject_is_admin():
 init_db()
 
 def clean_geocache():
-    with get_db_connection as conn:
+    with get_db_connection() as conn:
         c = conn.cursor()
         c.execute('''DELETE FROM geocache WHERE location NOT IN (SELECT DISTINCT land FROM books WHERE land IS NOT NULL AND land != '')''')
 
@@ -187,7 +187,7 @@ def index():
         
         filters = {col: request.form.get(col, '').strip() for col in 
                    ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'uitgeverij', 'isbn', 
-                    'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition',
+                    'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'bindwijze', 'edition', 'land',
                     'min_prijs', 'max_prijs', 'min_paginas', 'max_paginas'] if request.form.get(col, '').strip()}
         books = search_books(filters)
     
@@ -275,11 +275,9 @@ def mijn_boekenlijst():
         settings=settings
     )
 
-
-
-
 @app.route('/search', methods=['POST'])
 def search():
+    is_admin = session.get("role") == "admin"
     filters = request.get_json() or {}
     books = search_books(filters)
     return jsonify([{
@@ -287,7 +285,7 @@ def search():
         'genre': book[4], 'prijs': book[5], 'paginas': book[6], 'bindwijze': book[7],
         'edition': book[8], 'isbn': book[9], 'reeks_nr': book[10], 'uitgeverij': book[11],
         'serie': book[12], 'staat': book[13], 'taal': book[14], 'gesigneerd': book[15],
-        'gelezen': book[16], 'added_date': book[17], 'land': book[18]
+        'gelezen': book[16], 'added_date': book[17], 'land': book[18], 'is_admin' : is_admin
     } for book in books])
 
 @app.route('/fetch_cover', methods=['POST'])
