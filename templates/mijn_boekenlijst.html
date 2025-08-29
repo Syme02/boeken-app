@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Mijn Boekenlijst</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+</head>
+<body class="bg-gray-100 text-gray-900">
+  <div class="container mx-auto max-w-5xl p-6">
+      <header class="shadow" style="border-bottom: 1px solid var(--border-color);">
+    <div class="container mx-auto max-w-7xl p-4 flex justify-between items-center">
+      <div class="flex items-center space-x-3">
+        <a href="{{ url_for('index') }}">
+          <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Boeken Applicatie Logo" class="logo" />
+        </a>
+        <a href="{{ url_for('index') }}" class="text-2xl font-bold link-primary">Boeken Applicatie</a>
+      </div>
+      <nav class="flex space-x-4 items-center">
+        <a href="{{ url_for('index') }}" class="px-4 py-2 rounded-md font-medium link-primary">Boeken Zoeken</a>
+        <a href="{{ url_for('statistics') }}" class="px-4 py-2 rounded-md font-medium link-primary">Grafieken</a>
+
+        {% if session.username %}
+        <a href="{{ url_for('mijn_boekenlijst') }}" class="px-4 py-2 rounded-md font-medium link-primary">Mijn Boekenlijst</a>
+
+          <a href="{{ url_for('settings') }}" class="px-4 py-2 rounded-md font-medium link-primary">Instellingen</a>
+          <span class="text-sm">Ingelogd als: {{ session.username }} ({{ session.role }})</span>
+          <a href="{{ url_for('logout') }}" class="px-4 py-2 rounded-md btn-primary">Uitloggen</a>
+        {% else %}
+          <a href="{{ url_for('login') }}" class="px-4 py-2 rounded-md btn-primary">Inloggen</a>
+          <a href="{{ url_for('register') }}" class="px-4 py-2 rounded-md btn-primary">Registreren</a>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
+    <h1 class="text-3xl font-bold mb-6">Mijn Boekenlijst</h1>
+
+    {% if books %}
+      <div class="overflow-x-auto rounded-lg shadow bg-white">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-indigo-600 text-white">
+            <tr>
+              <th class="px-4 py-2 text-left">Nr</th>
+              <th class="px-4 py-2 text-left">Titel</th>
+              <th class="px-4 py-2 text-left">Auteur</th>
+              <th class="px-4 py-2 text-left">Genre</th>
+              <th class="px-4 py-2 text-left">Prijs (€)</th>
+              <th class="px-4 py-2 text-left">Pagina's</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200">
+            {% for book in books %}
+              <tr class="hover:bg-gray-50">
+                <td class="px-4 py-2">{{ loop.index }}</td>
+                <td class="px-4 py-2">{{ book[1] }}</td>
+                <td class="px-4 py-2">{{ book[2] }} {{ book[3] }}</td>
+                <td class="px-4 py-2">{{ book[4] }}</td>
+                <td class="px-4 py-2">{{ book[5] | round(2) }}</td>
+                <td class="px-4 py-2">{{ book[6] }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="text-gray-500">Je hebt nog geen boeken geliket.</p>
+    {% endif %}
+
+    <div class="mt-6">
+      <a href="{{ url_for('index') }}" class="px-4 py-2 bg-indigo-600 text-white rounded">← Terug naar overzicht</a>
+    </div>
+  </div>
+</body>
+</html>
