@@ -1,12 +1,4 @@
-<<<<<<< HEAD
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, current_app
-=======
-<<<<<<< HEAD
-#### comment zodat anders is
-=======
->>>>>>> 7b27123b4ad630ecb94483bbc6c34d181b2a5b2a
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
->>>>>>> 7e0b705695751dbe97a337d88715a82050bc9b73
 from flask_cors import CORS
 from functools import wraps
 from models.database import init_db, get_db_connection
@@ -809,8 +801,4 @@ def mijn_boekenlijst():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-<<<<<<< HEAD
-    app.run(host="0.0.0.0", port=port, debug=False)
-=======
     app.run(host="0.0.0.0", port=port, debug=True)
->>>>>>> 7b27123b4ad630ecb94483bbc6c34d181b2a5b2a
