@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Over mij</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900">
+  <div class="max-w-4xl mx-auto mt-10 p-6">
+    <div class="bg-white rounded-2xl shadow-md p-6">
+      <h1 class="text-2xl font-bold mb-6">👤 Over mij</h1>
+      
+      <!-- Bovenste sectie met foto + info -->
+      <div class="flex flex-col md:flex-row items-center gap-6">
+        <!-- Profielfoto -->
+        <div class="w-32 h-32 rounded-full overflow-hidden border border-gray-300 shadow">
+          <img src="{{ url_for('static', filename='images/' ~ user['profile_pic']) }}" 
+     alt="Profielfoto" class="w-32 h-32 rounded-full object-cover">
+
+        </div>
+        
+        <!-- Persoonlijke info -->
+        <div>
+          <h2>{{ user['username'] }}</h2>
+          <p>Email: {{ user['email'] }}</p>
+          <p>Lid sinds: {{ user['created_at'] }}</p>
+        </div>
+      </div>
+      
+      <!-- Bio -->
+      <div class="mt-6">
+        <h3 class="text-lg font-semibold mb-2">📖 Mijn bio</h3>
+        <p class="text-gray-700">
+          {% if user.bio %}
+            {{ user.bio }}
+          {% else %}
+            Je hebt nog geen bio geschreven. 
+            <a href="{{ url_for('edit_profile') }}" class="text-blue-600 hover:underline">Voeg er een toe →</a>
+          {% endif %}
+        </p>
+      </div>
+      
+      <!-- Extra statistieken -->
+      <div class="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+        <div class="p-4 rounded-lg bg-gray-50 shadow">
+          <p class="text-xl font-bold">{{ boek_count }}</p>
+          <p class="text-sm text-gray-500">📚 Boeken toegevoegd</p>
+        </div>
+        <div class="p-4 rounded-lg bg-gray-50 shadow">
+          <p class="text-xl font-bold">{{ fav_genre }}</p>
+          <p class="text-sm text-gray-500">🎭 Favoriet genre</p>
+        </div>
+        <div class="p-4 rounded-lg bg-gray-50 shadow">
+          <p class="text-xl font-bold">{{ gelezen_count }}</p>
+          <p class="text-sm text-gray-500">✅ Gelezen</p>
+        </div>
+        <div class="p-4 rounded-lg bg-gray-50 shadow">
+          <p class="text-xl font-bold">{{ wishlist_count }}</p>
+          <p class="text-sm text-gray-500">🛒 Wishlist</p>
+        </div>
+      </div>
+      
+      <!-- Knop -->
+      <div class="mt-6 text-right">
+        <a href="{{ url_for('edit_profile') }}" 
+           class="px-5 py-2 rounded-lg bg-blue-600 text-white font-medium shadow hover:bg-blue-700 transition">
+          Profiel bewerken
+        </a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

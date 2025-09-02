@@ -30,6 +30,28 @@
     thead { position: sticky; top: 0; z-index: 10; }
     header { background-color: var(--background-color); color: var(--text-color); }
     .logo { width: 40px; height: 40px; object-fit: contain; }
+    #colorPicker {
+      cursor: crosshair;
+      border: 2px solid var(--border-color);
+      width: 100%;
+      height: 150px;
+      position: relative;
+    }
+    #colorIndicator {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--text-color);
+      position: absolute;
+      pointer-events: none;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .color-preview {
+      width: 100%;
+      height: 30px; /* Smallere balk */
+      border: 2px solid var(--border-color);
+      margin-top: 0.5rem;
+    }
     @media (max-width: 640px) { .logo { width: 32px; height: 32px; } }
   </style>
 </head>
@@ -43,11 +65,11 @@
         <a href="{{ url_for('index') }}" class="text-2xl font-bold link-primary">Boeken Applicatie</a>
       </div>
       <nav class="flex space-x-4 items-center">
-        <a href="{{ url_for('index') }}" class="px-4 py-2 rounded-md font-medium link-primary">Boeken Zoeken</a>
-        <a href="{{ url_for('statistics') }}" class="px-4 py-2 rounded-md font-medium link-primary">Grafieken</a>
+        <a href="{{ url_for('index') }}" class="px-4 py-2 rounded-md font-medium link-primary">Home</a>
+        <a href="{{ url_for('dashboard') }}" class="px-4 py-2 rounded-md font-medium link-primary">Mijn Boekenlijst</a>
 
         {% if session.username %}
-        <a href="{{ url_for('mijn_boekenlijst') }}" class="px-4 py-2 rounded-md font-medium link-primary">Mijn Boekenlijst</a>
+        <a href="{{ url_for('statistics') }}" class="px-4 py-2 rounded-md font-medium link-primary">Grafieken</a>
 
           <a href="{{ url_for('settings') }}" class="px-4 py-2 rounded-md font-medium link-primary">Instellingen</a>
           <span class="text-sm">Ingelogd als: {{ session.username }} ({{ session.role }})</span>
@@ -81,7 +103,7 @@
 
       <!-- Kleur en donkere modus -->
       <h3 class="text-lg font-semibold mb-2">Algemene Instellingen</h3>
-        {% if is_admin %}
+        {% if is_super_admin %}
         <div class="mb-4">
           <a href="{{ url_for('manage_users') }}"
              class="inline-flex items-center px-4 py-2 text-white font-medium rounded-md shadow-sm transition-colors duration-200"

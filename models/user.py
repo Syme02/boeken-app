@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 def is_admin():
     role = session.get('role')
     logger.debug(f"is_admin check - Session role: {role}")
-    return role == 'admin'
+    return role in ['admin', 'super']  # Allow both admin and super roles for most actions
 
 def register_user(form):
     username = form.get('username', '').strip()
@@ -30,7 +30,7 @@ def register_user(form):
     
     hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
     try:
-        c.execute('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', (username, hashed_password, 'user'))
+        c.execute('INSERT INTO users (username, password, role) VALUES (?, ?, ?)', (username, hashed_password, 'super'))
         conn.commit()
         conn.close()
         return True, 'Gebruiker succesvol geregistreerd! Log nu in.'
