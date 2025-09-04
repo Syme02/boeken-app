@@ -10,6 +10,52 @@ logger = logging.getLogger(__name__)
 
 DB_PATH = "books.db"  # Pas aan als je bestand anders heet
 
+def validate_form(form):
+    """Validate form data for text and numeric fields."""
+    errors = []
+    
+    # Required text field
+    if not form.get('titel', '').strip():
+        errors.append("Titel is verplicht en moet een niet-lege tekst zijn!")
+    
+    # Optional text fields (allow empty)
+    text_fields = ['auteur_voornaam', 'auteur_achternaam', 'genre', 'bindwijze', 'edition', 
+                   'isbn', 'uitgeverij', 'serie', 'staat', 'taal', 'gesigneerd', 'gelezen', 'land']
+    for field in text_fields:
+        value = form.get(field, '').strip()
+        if value and not isinstance(value, str):
+            errors.append(f"{field.replace('_', ' ').title()} moet een tekst zijn!")
+    
+    # Numeric fields
+    try:
+        prijs = form.get('prijs', '').strip()
+        if prijs:
+            float(prijs)
+        elif prijs == '':
+            form['prijs'] = '0.0'  # Set default for empty prijs
+    except ValueError:
+        errors.append("Prijs moet een geldig getal zijn (bijv. 12.50)!")
+    
+    try:
+        paginas = form.get('paginas', '').strip()
+        if paginas:
+            int(float(paginas))  # Handle float-like strings (e.g., '30.0')
+        elif paginas == '':
+            form['paginas'] = '0'  # Set default for empty paginas
+    except ValueError:
+        errors.append("Pagina's moet een geldig geheel getal zijn (bijv. 300)!")
+    
+    try:
+        reeks_nr = form.get('reeks_nr', '').strip()
+        if reeks_nr:
+            int(float(reeks_nr))  # Handle float-like strings (e.g., '30.0')
+        elif reeks_nr == '':
+            form['reeks_nr'] = '0'  # Set default for empty reeks_nr
+    except ValueError:
+        errors.append("Reeks nr moet een geldig geheel getal zijn (bijv. 1)!")
+    
+    return errors
+
 def load_csv_to_db(csv_source, overwrite=False, user_id=None):
     logger.debug(f"Starting CSV import for user_id: {user_id}, overwrite: {overwrite}")
     try:
@@ -134,9 +180,9 @@ def load_csv_to_db(csv_source, overwrite=False, user_id=None):
                                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', 
                                  (int(row['user_id']), row['titel'], row['auteur_voornaam'], row['auteur_achternaam'], 
                                   row['genre'], float(row['prijs']), int(row['paginas']), row['bindwijze'], 
-                                  row['edition'], row['isbn'], int(row['reeks_nr']), row['uitgeverij'], row['serie'], 
-                                  row['staat'], row['taal'], row['gesigneerd'], row['gelezen'], row['added_date'], 
-                                  row['land']))
+                                  row['edition'], row['isbn'], int(row['reeks_nr']) if pd.notnull(row['reeks_nr']) else 0, 
+                                  row['uitgeverij'], row['serie'], row['staat'], row['taal'], row['gesigneerd'], 
+                                  row['gelezen'], row['added_date'], row['land']))
                     inserted_count += 1
             conn.commit()
             logger.info(f"Inserted {inserted_count} new books for user {user_id}")
@@ -169,7 +215,7 @@ def search_books(filters, user_id=None):
     if 'reeks_nr' in filters and filters['reeks_nr'].strip():
         try:
             query += " AND reeks_nr = ?"
-            params.append(int(filters['reeks_nr']))
+            params.append(int(float(filters['reeks_nr'])))  # Handle float-like strings
         except ValueError:
             logger.warning(f"Invalid reeks_nr value: {filters['reeks_nr']}")
             pass
@@ -180,7 +226,7 @@ def search_books(filters, user_id=None):
             try:
                 operator = '>=' if 'min' in range_col else '<='
                 query += f" AND {col_name} {operator} ?"
-                params.append(float(filters[range_col]) if col_name == 'prijs' else int(filters[range_col]))
+                params.append(float(filters[range_col]) if col_name == 'prijs' else int(float(filters[range_col])))
             except ValueError:
                 logger.warning(f"Invalid {range_col} value: {filters[range_col]}")
                 pass
@@ -197,9 +243,9 @@ def search_books(filters, user_id=None):
 
 def add_book(form):
     logger.debug(f"Adding book with form data: {form}")
-    if not form.get('titel', '').strip():
-        logger.error("Missing required field: titel")
-        return False, "Titel is verplicht!"
+    errors = validate_form(form)
+    if errors:
+        return False, " | ".join(errors)
     
     user_id = form.get('user_id')
     if not user_id:
@@ -214,24 +260,24 @@ def add_book(form):
     
     data = {
         'user_id': user_id,
-        'titel': form.get('titel', ''),
-        'auteur_voornaam': form.get('auteur_voornaam', ''),
-        'auteur_achternaam': form.get('auteur_achternaam', ''),
-        'genre': form.get('genre', ''),
-        'prijs': float(form.get('prijs', 0)) if form.get('prijs', '') else 0.0,
-        'paginas': int(form.get('paginas', 0)) if form.get('paginas', '') else 0,
-        'bindwijze': form.get('bindwijze', ''),
-        'edition': form.get('edition', ''),
-        'isbn': form.get('isbn', ''),
-        'reeks_nr': int(form.get('reeks_nr', 0)) if form.get('reeks_nr', '').strip() else 0,
-        'uitgeverij': form.get('uitgeverij', ''),
-        'serie': form.get('serie', ''),
-        'staat': form.get('staat', ''),
-        'taal': form.get('taal', ''),
-        'gesigneerd': form.get('gesigneerd', ''),
-        'gelezen': form.get('gelezen', ''),
+        'titel': form.get('titel', '').strip(),
+        'auteur_voornaam': form.get('auteur_voornaam', '').strip(),
+        'auteur_achternaam': form.get('auteur_achternaam', '').strip(),
+        'genre': form.get('genre', '').strip(),
+        'prijs': float(form.get('prijs', '0.0')) if form.get('prijs', '').strip() else 0.0,
+        'paginas': int(float(form.get('paginas', '0'))) if form.get('paginas', '').strip() else 0,
+        'bindwijze': form.get('bindwijze', '').strip(),
+        'edition': form.get('edition', '').strip(),
+        'isbn': form.get('isbn', '').strip(),
+        'reeks_nr': int(float(form.get('reeks_nr', '0'))) if form.get('reeks_nr', '').strip() else 0,
+        'uitgeverij': form.get('uitgeverij', '').strip(),
+        'serie': form.get('serie', '').strip(),
+        'staat': form.get('staat', '').strip(),
+        'taal': form.get('taal', '').strip(),
+        'gesigneerd': form.get('gesigneerd', '').strip(),
+        'gelezen': form.get('gelezen', '').strip(),
         'added_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'land': form.get('land', '')
+        'land': form.get('land', '').strip()
     }
     
     conn = get_db_connection()
@@ -254,9 +300,10 @@ def edit_book(book_id, form):
     if not book_id:
         logger.error("No book_id provided")
         return False, "Geen boek-ID opgegeven!"
-    if not form.get('titel', '').strip():
-        logger.error("Missing required field: titel")
-        return False, "Titel is verplicht!"
+    
+    errors = validate_form(form)
+    if errors:
+        return False, " | ".join(errors)
     
     user_id = form.get('user_id')
     if not user_id:
@@ -270,24 +317,24 @@ def edit_book(book_id, form):
         return False, "Ongeldige Gebruiker-ID!"
     
     data = {
-        'titel': form.get('titel', ''),
-        'auteur_voornaam': form.get('auteur_voornaam', ''),
-        'auteur_achternaam': form.get('auteur_achternaam', ''),
-        'genre': form.get('genre', ''),
-        'prijs': float(form.get('prijs', 0)) if form.get('prijs', '') else 0.0,
-        'paginas': int(form.get('paginas', 0)) if form.get('paginas', '') else 0,
-        'bindwijze': form.get('bindwijze', ''),
-        'edition': form.get('edition', ''),
-        'isbn': form.get('isbn', ''),
-        'reeks_nr': int(form.get('reeks_nr', 0)) if form.get('reeks_nr', '').strip() else 0,
-        'uitgeverij': form.get('uitgeverij', ''),
-        'serie': form.get('serie', ''),
-        'staat': form.get('staat', ''),
-        'taal': form.get('taal', ''),
-        'gesigneerd': form.get('gesigneerd', ''),
-        'gelezen': form.get('gelezen', ''),
+        'titel': form.get('titel', '').strip(),
+        'auteur_voornaam': form.get('auteur_voornaam', '').strip(),
+        'auteur_achternaam': form.get('auteur_achternaam', '').strip(),
+        'genre': form.get('genre', '').strip(),
+        'prijs': float(form.get('prijs', '0.0')) if form.get('prijs', '').strip() else 0.0,
+        'paginas': int(float(form.get('paginas', '0'))) if form.get('paginas', '').strip() else 0,
+        'bindwijze': form.get('bindwijze', '').strip(),
+        'edition': form.get('edition', '').strip(),
+        'isbn': form.get('isbn', '').strip(),
+        'reeks_nr': int(float(form.get('reeks_nr', '0'))) if form.get('reeks_nr', '').strip() else 0,
+        'uitgeverij': form.get('uitgeverij', '').strip(),
+        'serie': form.get('serie', '').strip(),
+        'staat': form.get('staat', '').strip(),
+        'taal': form.get('taal', '').strip(),
+        'gesigneerd': form.get('gesigneerd', '').strip(),
+        'gelezen': form.get('gelezen', '').strip(),
         'added_date': form.get('added_date', '') or datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'land': form.get('land', '')
+        'land': form.get('land', '').strip()
     }
     
     conn = get_db_connection()

@@ -1,12 +1,8 @@
-<!DOCTYPE html>
-<html lang="nl">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Profiel bewerken</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-50 text-gray-900">
+{% extends "base.html" %}
+
+{% block title %}Instellingen - Boeken Applicatie{% endblock %}
+
+{% block content %}
   <div class="max-w-2xl mx-auto mt-10 p-6">
     <div class="bg-white rounded-2xl shadow-md p-6">
       <h1 class="text-2xl font-bold mb-6">✏️ Profiel bewerken</h1>
@@ -38,5 +34,4 @@
       </form>
     </div>
   </div>
-</body>
-</html>
+{% endblock %}

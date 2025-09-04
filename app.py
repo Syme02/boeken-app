@@ -1,17 +1,17 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, current_app
+from io import StringIO, BytesIO
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, current_app, send_file
 from flask_cors import CORS
 from functools import wraps
 from models.database import init_db, get_db_connection
 from models.book import load_csv_to_db, search_books, add_book, edit_book as update_book, delete_book
 from models.user import register_user, login_user, is_admin
-from geopy.geocoders import Nominatim
-from geopy.exc import GeocoderTimedOut
-from werkzeug.utils import secure_filename
-from geopy.distance import geodesic
+from models.statistics_helpers import get_user_books, generate_charts, get_location_coords, generate_fun_facts
 import time
 import os
 import pandas as pd
 import logging
+
+
 
 # Configureer logging
 logging.basicConfig(level=logging.DEBUG)
@@ -168,7 +168,7 @@ def over_mij():
     if not user_id:
         flash("Log in om je profiel te bekijken.", "error")
         return redirect(url_for("login"))
-
+    settings = get_user_settings(user_id)
     conn = get_db_connection()
     df = pd.read_sql_query("SELECT * FROM books WHERE user_id = ?", conn, params=(user_id,))
     conn.close()
@@ -190,7 +190,7 @@ def over_mij():
         gelezen_count=gelezen_count,
         wishlist_count=wishlist_count,
         fav_genre=fav_genre,
-        user=user
+        user=user, settings=settings
     )
 
 
@@ -201,7 +201,7 @@ def edit_profile():
     if not user_id:
         flash("Log in om je profiel te bekijken.", "error")
         return redirect(url_for("login"))
-
+    settings = get_user_settings(user_id)
     conn = get_db_connection()
     user = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
 
@@ -240,10 +240,11 @@ def edit_profile():
         return redirect(url_for("over_mij"))
 
     conn.close()
-    return render_template("edit_profile.html", user=user)
+    return render_template("edit_profile.html", user=user, settings=settings)
 
 
 @app.route('/dashboard', methods=['GET', 'POST'])
+@login_required
 def dashboard():
     user_id = session.get('user_id', 0)
     if not user_id:
@@ -283,6 +284,10 @@ def dashboard():
             success, message = update_book(book_id, form_data)
             clean_geocache()
             flash(message, 'success' if success else 'error')
+            
+            # Na update alle velden leegmaken
+            return redirect(url_for('dashboard'))
+
         
         filters = {col: request.form.get(col, '').strip() for col in 
                    ['titel', 'auteur_voornaam', 'auteur_achternaam', 'genre', 'uitgeverij', 'isbn', 
@@ -334,7 +339,7 @@ def dashboard():
     logger.debug(f"DataFrame dtypes: {df.dtypes}")
     if not df.empty:
         df['prijs'] = pd.to_numeric(df['prijs'], errors='coerce').fillna(0).astype(float)
-        df['paginas'] = pd.to_numeric(df['paginas'], errors='coerce').fillna(0).astype(int)
+        df['paginas'] = pd.to_numeric(df['paginas'], errors='coerce').fillna(0).astype(float).astype(int)
         logger.debug(f"Sample paginas values: {df['paginas'].head().tolist()}")
     total_price = df['prijs'].sum() if not df.empty else 0
     total_pages = df['paginas'].sum() if not df.empty else 0
@@ -441,245 +446,61 @@ def upload_csv():
     conn.close()
     
     return redirect(url_for('dashboard'))
+    
+@app.route('/download_csv', methods=['GET'])
+@login_required
+def download_csv():
+    user_id = session.get('user_id')
+    user_name = session.get('username')
+    logger.debug(f"CSV download initiated by user {user_id}")
+    
+    try:
+        conn = get_db_connection()
+        df = pd.read_sql_query('SELECT titel, auteur_voornaam, auteur_achternaam, genre, prijs, paginas, bindwijze, edition, isbn, reeks_nr, uitgeverij, serie, staat, taal, gesigneerd, gelezen, added_date, land FROM books WHERE user_id = ?', conn, params=(user_id,))
+        conn.close()
+        
+        if df.empty:
+            logger.warning(f"No books found for user {user_id}")
+            flash("Geen boeken gevonden om te exporteren!", "error")
+            return redirect(url_for('settings'))
+        
+        logger.debug(f"Retrieved {len(df)} books for CSV export for user {user_id}")
+        csv_buffer = StringIO()
+        df.to_csv(csv_buffer, index=False, encoding='utf-8-sig')
+        csv_buffer.seek(0)
+        
+        return send_file(
+            BytesIO(csv_buffer.getvalue().encode('utf-8-sig')),
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name= f"boekenlijst_van_{user_name}.csv"
+        )
+    except Exception as e:
+        logger.error(f"Error during CSV download: {str(e)}")
+        flash(f"Fout bij exporteren naar CSV: {str(e)}", "error")
+        return redirect(url_for('settings'))
 
 @app.route('/statistics')
 def statistics():
-    user_id = session.get('user_id', 0)
+    user_id = session.get('user_id')
     if not user_id:
         flash('Log in om boeken te bekijken.', 'error')
         return redirect(url_for('login'))
-    user_id = session.get('user_id', 0)
+
     settings = get_user_settings(user_id)
-    conn = get_db_connection()
-    try:
-        df = pd.read_sql_query('SELECT * FROM books WHERE user_id = ?', conn, params=(user_id,))
-        logger.debug(f"Statistics - Retrieved {len(df)} rows for user {user_id}")
-        logger.debug(f"Columns in dataframe: {df.columns.tolist()}")
-    except Exception as e:
-        logger.error(f"Database error in statistics: {str(e)}")
-        flash(f"Databasefout bij ophalen statistieken: {str(e)}", "error")
-        conn.close()
-        return render_template('statistics.html', charts={}, settings=settings, fun_facts=[], location_coords={})
+    df = get_user_books(user_id)
 
-    if not df.empty:
-        df['prijs'] = pd.to_numeric(df['prijs'], errors='coerce').fillna(0).astype(float)
-        df['paginas'] = pd.to_numeric(df['paginas'], errors='coerce').fillna(0).astype(int)
-        logger.debug(f"Sample paginas values: {df['paginas'].head().tolist()}")
+    charts = generate_charts(df)
+    location_coords = get_location_coords(df)
+    fun_facts = generate_fun_facts(df, location_coords)
 
-    charts = {}
-    location_coords = {}
-    fun_facts = []
-
-    if not df.empty:
-        if "genre" in df.columns:
-            genre_counts = df["genre"].value_counts().to_dict()
-            charts['genre'] = {'labels': list(genre_counts.keys()), 'data': list(genre_counts.values())}
-            logger.debug(f"Genre chart: {charts['genre']}")
-        if "gelezen" in df.columns:
-            gelezen_counts = df["gelezen"].value_counts().to_dict()
-            charts['gelezen'] = {'labels': list(gelezen_counts.keys()), 'data': list(gelezen_counts.values())}
-            logger.debug(f"Gelezen chart: {charts['gelezen']}")
-        if "taal" in df.columns:
-            taal_counts = df["taal"].value_counts().to_dict()
-            charts['taal'] = {'labels': list(taal_counts.keys()), 'data': list(taal_counts.values())}
-            logger.debug(f"Taal chart: {charts['taal']}")
-        if "paginas" in df.columns:
-            pages = df["paginas"].dropna()
-            if not pages.empty:
-                hist = pd.cut(pages, bins=20, include_lowest=True)
-                counts = hist.value_counts().sort_index()
-                charts['paginas'] = {
-                    'labels': [f"{int(interval.left)}-{int(interval.right)}" for interval in counts.index],
-                    'data': counts.tolist()
-                }
-                logger.debug(f"Paginas chart: {charts['paginas']}")
-        if "auteur_voornaam" in df.columns and "auteur_achternaam" in df.columns:
-            df["auteur"] = df["auteur_voornaam"] + " " + df["auteur_achternaam"]
-            auteur_counts = df["auteur"].value_counts().head(10).to_dict()
-            charts['auteur'] = {'labels': list(auteur_counts.keys()), 'data': list(auteur_counts.values())}
-            logger.debug(f"Auteur chart: {charts['auteur']}")
-        if "genre" in df.columns and "prijs" in df.columns:
-            avg_price = df.groupby("genre")["prijs"].mean().to_dict()
-            charts['avg_price'] = {'labels': list(avg_price.keys()), 'data': [round(v, 2) for v in avg_price.values()]}
-            logger.debug(f"Avg price chart: {charts['avg_price']}")
-        if "land" in df.columns:
-            land_counts = df[df["land"].notnull() & (df["land"] != '')]["land"].value_counts().to_dict()
-            charts['land'] = {'labels': list(land_counts.keys()), 'data': list(land_counts.values())}
-            logger.debug(f"Aankoop stad chart: {charts['land']}")
-
-            c = conn.cursor()
-            try:
-                geolocator = Nominatim(user_agent="boeken_app")
-                for loc in land_counts.keys():
-                    if loc and loc.strip():
-                        c.execute('SELECT lat, lon FROM geocache WHERE location = ?', (loc,))
-                        result = c.fetchone()
-                        if result:
-                            location_coords[loc] = (result[0], result[1])
-                            logger.debug(f"Cached coords for {loc}: {location_coords[loc]}")
-                        else:
-                            try:
-                                time.sleep(1)
-                                geo = geolocator.geocode(loc, country_codes='nl,be,gb,it,de,at,ch', timeout=5)
-                                if geo:
-                                    location_coords[loc] = (geo.latitude, geo.longitude)
-                                    c.execute('INSERT INTO geocache (location, lat, lon) VALUES (?, ?, ?)', 
-                                              (loc, geo.latitude, geo.longitude))
-                                    conn.commit()
-                                    logger.debug(f"Geocoded and cached {loc}: {location_coords[loc]}")
-                                else:
-                                    logger.debug(f"Geen coördinaten voor {loc}")
-                            except (GeocoderTimedOut, Exception) as e:
-                                logger.error(f"Geocoding fout voor {loc}: {e}")
-            except Exception as e:
-                logger.error(f"Geocoding initialisatie fout: {e}")
-                flash("Geocoding niet beschikbaar; controleer geopy installatie.", "error")
-            logger.debug(f"Location coords: {location_coords}")
-
-        if "paginas" in df.columns and df["paginas"].notna().any():
-            dikste = df.loc[df["paginas"].idxmax()]
-            fun_facts.append(f"Je dikste boek is '{dikste['titel']}' met {int(dikste['paginas'])} pagina’s.")
-        if "prijs" in df.columns and df["prijs"].notna().any():
-            duurste = df.loc[df["prijs"].idxmax()]
-            fun_facts.append(f"Het duurste boek in je collectie is '{duurste['titel']}' voor €{round(duurste['prijs'],2)}.")
-        if "taal" in df.columns:
-            talen = df["taal"].nunique()
-            if talen > 1:
-                fun_facts.append(f"Je hebt boeken in {talen} verschillende talen!")
-        fun_facts.append(f"Totaal aantal boeken in je collectie: {len(df)}.")
-        logger.debug(f"Fun facts: {fun_facts}")
-        
-        
-                # New Fun Facts
-        # 1. Farthest Distance Between Two Books
-        if location_coords and len(location_coords) >= 2:
-            max_distance = 0
-            book_pair = (None, None)
-            title_pair = (None, None)
-            for loc1, coord1 in location_coords.items():
-                book1 = df[df['land'] == loc1].iloc[0]
-                for loc2, coord2 in location_coords.items():
-                    if loc1 != loc2:
-                        distance = geodesic(coord1, coord2).kilometers
-                        if distance > max_distance:
-                            max_distance = distance
-                            book_pair = (loc1, loc2)
-                            title_pair = (book1['titel'], df[df['land'] == loc2].iloc[0]['titel'])
-            if book_pair[0] and book_pair[1]:
-                fun_facts.append(
-                    f"De verste afstand tussen twee boeken is {round(max_distance, 2)} km, "
-                    f"tussen '{title_pair[0]}' ({book_pair[0]}) en '{title_pair[1]}' ({book_pair[1]})."
-                )
-                logger.debug(f"Max distance: {max_distance} km between {book_pair}")
-
-        # 2. Most Prolific Publication Year
-        if "publicatie_jaar" in df.columns and df["publicatie_jaar"].notna().any():
-            most_common_year = df["publicatie_jaar"].value_counts().idxmax()
-            year_count = df["publicatie_jaar"].value_counts().max()
-            fun_facts.append(
-                f"Je hebt {year_count} boeken uit {int(most_common_year)}, je meest populaire publicatiejaar!"
-            )
-            logger.debug(f"Most common publication year: {most_common_year} with {year_count} books")
-
-        # 3. Average Book Price
-        if "prijs" in df.columns and df["prijs"].notna().any():
-            avg_price = df["prijs"].mean()
-            fun_facts.append(f"De gemiddelde prijs van je boeken is €{round(avg_price, 2)}.")
-            logger.debug(f"Average book price: €{avg_price}")
-
-        # 4. Longest Author Name
-        if "auteur" in df.columns and df["auteur"].notna().any():
-            longest_author_book = df.loc[df["auteur"].str.len().idxmax()]
-            longest_author = longest_author_book["auteur"]
-            fun_facts.append(
-                f"Het boek met de langste auteursnaam is '{longest_author_book['titel']}' "
-                f"door '{longest_author}' ({len(longest_author)} karakters)."
-            )
-            logger.debug(f"Longest author name: {longest_author}")
-
-        # 5. Most Diverse Genre
-        if "genre" in df.columns and "auteur" in df.columns and df["genre"].notna().any():
-            genre_author_counts = df.groupby("genre")["auteur"].nunique()
-            most_diverse_genre = genre_author_counts.idxmax()
-            author_count = genre_author_counts.max()
-            fun_facts.append(
-                f"Het genre '{most_diverse_genre}' heeft de meeste unieke auteurs: {author_count} verschillende auteurs."
-            )
-            logger.debug(f"Most diverse genre: {most_diverse_genre} with {author_count} authors")
-
-        logger.debug(f"Fun facts: {fun_facts}")
-        
-                # New Additional Fun Facts
-        # 1. Oldest Book in Collection
-        if "publicatie_jaar" in df.columns and df["publicatie_jaar"].notna().any():
-            oldest_book = df.loc[df["publicatie_jaar"].idxmin()]
-            fun_facts.append(
-                f"Je oudste boek is '{oldest_book['titel']}' uit {int(oldest_book['publicatie_jaar'])}."
-            )
-            logger.debug(f"Oldest book: {oldest_book['titel']} from {oldest_book['publicatie_jaar']}")
-
-        # 2. Most Common Title First Letter
-        if "titel" in df.columns and df["titel"].notna().any():
-            first_letters = df["titel"].str[0].str.upper().value_counts()
-            if not first_letters.empty:
-                most_common_letter = first_letters.idxmax()
-                letter_count = first_letters.max()
-                fun_facts.append(
-                    f"De meest voorkomende beginletter van je boektitels is '{most_common_letter}' "
-                    f"({letter_count} boeken)."
-                )
-                logger.debug(f"Most common title first letter: {most_common_letter} with {letter_count} books")
-
-        # 3. Total Reading Time Estimate
-        if "paginas" in df.columns and df["paginas"].notna().any():
-            total_pages = df["paginas"].sum()
-            reading_speed = 80  # pages per hour
-            total_hours = total_pages / reading_speed
-            if total_hours < 24:
-                fun_facts.append(
-                    f"Het lezen van al je boeken zou ongeveer {round(total_hours, 1)} uur duren "
-                    f"(bij 250 pagina’s per uur)."
-                )
-            else:
-                total_days = total_hours / 24
-                fun_facts.append(
-                    f"Het lezen van al je boeken zou ongeveer {round(total_days, 1)} dagen duren "
-                    f"(bij 250 pagina’s per uur)."
-                )
-            logger.debug(f"Total reading time: {total_hours} hours for {total_pages} pages")
-
-        # 4. Most Expensive Genre
-        if "genre" in df.columns and "prijs" in df.columns and df["prijs"].notna().any():
-            genre_total_price = df.groupby("genre")["prijs"].sum()
-            most_expensive_genre = genre_total_price.idxmax()
-            total_price = genre_total_price.max()
-            fun_facts.append(
-                f"Het genre '{most_expensive_genre}' is het duurst, met een totale waarde van €{round(total_price, 2)}."
-            )
-            logger.debug(f"Most expensive genre: {most_expensive_genre} with total €{total_price}")
-
-        # 5. Language Diversity by Author
-        if "auteur" in df.columns and "taal" in df.columns and df["taal"].notna().any():
-            author_language_counts = df.groupby("auteur")["taal"].nunique()
-            if not author_language_counts.empty:
-                most_diverse_author = author_language_counts.idxmax()
-                language_count = author_language_counts.max()
-                if language_count > 1:
-                    fun_facts.append(
-                        f"De auteur '{most_diverse_author}' heeft boeken in {language_count} verschillende talen."
-                    )
-                    logger.debug(f"Most diverse author: {most_diverse_author} with {language_count} languages")
-
-        logger.debug(f"Fun facts: {fun_facts}")
-
-    conn.close()
-    return render_template('statistics.html', charts=charts, settings=settings, fun_facts=fun_facts, location_coords=location_coords)
-
-    conn.close()
-    return render_template('statistics.html', charts=charts, settings=settings, fun_facts=fun_facts, location_coords=location_coords)
-
-    conn.close()
-    return render_template('statistics.html', charts=charts, settings=settings, fun_facts=fun_facts, location_coords=location_coords)
+    return render_template(
+        'statistics.html',
+        charts=charts,
+        settings=settings,
+        fun_facts=fun_facts,
+        location_coords=location_coords
+    )
 
 @app.route('/settings', methods=['GET', 'POST'])
 @login_required

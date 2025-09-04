@@ -1,62 +1,8 @@
-<!DOCTYPE html>
-<html lang="nl">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Welkom | Boeken Applicatie</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
-  <style>
-    :root {
-      --primary-color: {{ settings.color }};
-      --background-color: {{ '#1f2937' if settings.dark_mode else '#ffffff' }};
-      --text-color: {{ '#f9fafb' if settings.dark_mode else '#111827' }};
-      --card-bg: {{ '#111827' if settings.dark_mode else '#ffffff' }};
-      --row-odd: {{ '#0f172a' if settings.dark_mode else '#ffffff' }};
-      --row-even: {{ '#111827' if settings.dark_mode else '#f9fafb' }};
-      --muted: {{ '#9ca3af' if settings.dark_mode else '#6b7280' }};
-      --border-color: {{ '#374151' if settings.dark_mode else '#e5e7eb' }};
-      --focus-ring: {{ settings.color }};
-    }
-    html, body { height: 100%; }
-    body { background-color: var(--background-color); color: var(--text-color); }
-    .card { background-color: var(--card-bg); border: 1px solid var(--border-color); }
-    .input-base { border: 1px solid var(--border-color); background-color: var(--background-color); color: var(--text-color); }
-    .input-base:focus { outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,0); border-color: var(--focus-ring); }
-    .btn-primary { background-color: var(--primary-color); color: #fff; }
-    .btn-primary:hover { filter: brightness(0.95); }
-    .link-primary { color: var(--primary-color); }
-    .link-primary:hover { text-decoration: underline; }
-    header { background-color: var(--background-color); color: var(--text-color); }
-    .logo { width: 52px; height: 52px; object-fit: contain; }
-    @media (max-width: 640px) { .logo { width: 32px; height: 32px; } }
-  </style>
-</head>
-<body class="min-h-screen flex flex-col">
-  <!-- Header -->
-  <header class="shadow" style="border-bottom: 1px solid var(--border-color);">
-    <div class="container mx-auto max-w-7xl p-4 flex justify-between items-center">
-      <div class="flex items-center space-x-3">
-        <a href="{{ url_for('index') }}">
-          <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Boeken Applicatie Logo" class="logo" />
-        </a>
-        <a href="{{ url_for('index') }}" class="text-2xl font-bold link-primary">Boeken Applicatie</a>
-      </div>
-      <nav class="flex space-x-4 items-center">
-        <a href="{{ url_for('index') }}" class="px-4 py-2 rounded-md font-medium link-primary">Home</a>
-        <a href="{{ url_for('dashboard') }}" class="px-4 py-2 rounded-md font-medium link-primary">Mijn Boekenlijst</a>
-        {% if session.username %}
-          <a href="{{ url_for('statistics') }}" class="px-4 py-2 rounded-md font-medium link-primary">Grafieken</a>
-          <a href="{{ url_for('settings') }}" class="px-4 py-2 rounded-md font-medium link-primary">Instellingen</a>
-          <span class="text-sm">Ingelogd als: {{ session.username }} ({{ session.role }})</span>
-          <a href="{{ url_for('logout') }}" class="px-4 py-2 rounded-md btn-primary">Uitloggen</a>
-        {% else %}
-          <a href="{{ url_for('login') }}" class="px-4 py-2 rounded-md btn-primary">Inloggen</a>
-          <a href="{{ url_for('register') }}" class="px-4 py-2 rounded-md btn-primary">Registreren</a>
-        {% endif %}
-      </nav>
-    </div>
-  </header>
+{% extends "base.html" %}
 
+{% block title %}Instellingen - Boeken Applicatie{% endblock %}
+
+{% block content %}
   <!-- Main -->
   <main class="container mx-auto max-w-7xl p-4 flex-1">
     <!-- Hero / Welkom -->
@@ -180,9 +126,7 @@
       <p class="mt-4 text-sm" style="color: var(--muted);">Tip: maak eerst een account aan en log in om alle functies te gebruiken.</p>
       {% endif %}
     </section>
-
-    <p class="text-center mt-6 italic" style="color: var(--muted);">Versie 1.4.7 | Logo by <a href="https://www.flaticon.com" class="link-primary">Flaticon</a></p>
   </main>
-</body>
+{% endblock %}
 
 </html>

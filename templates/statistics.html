@@ -1,153 +1,73 @@
-<!DOCTYPE html>
-<html lang="nl">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Statistieken</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-  <style>
-    :root {
-      --primary-color: {{ settings.color }};
-      --background-color: {{ '#1f2937' if settings.dark_mode else '#ffffff' }};
-      --text-color: {{ '#f9fafb' if settings.dark_mode else '#111827' }};
-      --card-bg: {{ '#111827' if settings.dark_mode else '#ffffff' }};
-      --border-color: {{ '#374151' if settings.dark_mode else '#e5e7eb' }};
-      --muted: {{ '#9ca3af' if settings.dark_mode else '#6b7280' }};
-    }
-    body { background-color: var(--background-color); color: var(--text-color); }
-    .card { background-color: var(--card-bg); border: 1px solid var(--border-color); }
-    .btn-primary { background-color: var(--primary-color); color: #fff; }
-    .btn-primary:hover { filter: brightness(0.95); }
-    .link-primary { color: var(--primary-color); }
-    .link-primary:hover { text-decoration: underline; }
+{% extends "base.html" %}
 
-    .logo {
-  width: 52px;
-  height: 52px;
-  object-fit: contain;
-   /* Witte rand in donkere modus, zwarte in lichte */
-}
-    select { border: 1px solid var(--border-color); background-color: var(--background-color); color: var(--text-color); }
-    canvas { background-color: var(--card-bg); border-radius: 0.75rem; }
-  </style>
-</head>
-<body class="min-h-screen flex flex-col">
-  <header class="shadow" style="border-bottom: 1px solid var(--border-color);">
-    <div class="container mx-auto max-w-7xl p-4 flex justify-between items-center">
-      <div class="flex items-center space-x-3">
-        <a href="{{ url_for('index') }}">
-          <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Boeken Applicatie Logo" class="logo" />
-        </a>
-        <a href="{{ url_for('index') }}" class="text-2xl font-bold link-primary">Boeken Applicatie</a>
-      </div>
-      <nav class="flex space-x-4 items-center">
-        <a href="{{ url_for('index') }}" class="px-4 py-2 rounded-md font-medium link-primary">Home</a>
-        <a href="{{ url_for('dashboard') }}" class="px-4 py-2 rounded-md font-medium link-primary">Mijn Boekenlijst</a>
+{% block title %}Statistieken - Boeken Applicatie{% endblock %}
 
-        {% if session.username %}
-        <a href="{{ url_for('statistics') }}" class="px-4 py-2 rounded-md font-medium link-primary">Grafieken</a>
+{% block content %}
+  {% if fun_facts %}
+  <div class="card p-4 mb-6 rounded-xl shadow-md">
+    <h3 class="font-bold mb-2">📚 Fun Fact</h3>
+    <p id="fun-fact-text" class="italic"></p>
+  </div>
+  {% endif %}
 
-          <a href="{{ url_for('settings') }}" class="px-4 py-2 rounded-md font-medium link-primary">Instellingen</a>
-          <span class="text-sm">Ingelogd als: {{ session.username }} ({{ session.role }})</span>
-          <a href="{{ url_for('logout') }}" class="px-4 py-2 rounded-md btn-primary">Uitloggen</a>
-        {% else %}
-          <a href="{{ url_for('login') }}" class="px-4 py-2 rounded-md btn-primary">Inloggen</a>
-          <a href="{{ url_for('register') }}" class="px-4 py-2 rounded-md btn-primary">Registreren</a>
-        {% endif %}
-      </nav>
-    </div>
-  </header>
-  <div class="container mx-auto max-w-6xl p-4 flex-1 flex flex-col">
-    <!-- Header / Tabs -->
+  <div class="card rounded-xl shadow-sm p-6 flex-1 mb-6">
+    <h2 class="text-2xl font-bold mb-4">Statistieken</h2>
 
-    {% if fun_facts %}
-    <div class="card p-4 mb-6 rounded-xl shadow-md" 
-         style="background-color: var(--card-bg); color: var(--text-color);">
-      <h3 class="font-bold mb-2">📚 Fun Fact</h3>
-      <p id="fun-fact-text" class="italic"></p>
-    </div>
-    {% endif %}
-
-
-
-
-
-    <!-- Content Card -->
-    <div class="card rounded-xl shadow-sm p-6 flex-1">
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          <div class="space-y-2 mb-4">
-            {% for category, message in messages %}
-              <div class="p-3 rounded-lg text-white shadow-md"
-                   style="background-color: {% if category=='success' %}#16a34a{% elif category=='error' %}#dc2626{% else %}#2563eb{% endif %};">
-                {{ message }}
-              </div>
-            {% endfor %}
-          </div>
-        {% endif %}
-      {% endwith %}
-
-      <h2 class="text-2xl font-bold mb-4">Statistieken</h2>
-
-
-      {% if charts %}
-        <div class="mb-6">
-          <label for="chart-select" class="block text-sm font-medium mb-2">Kies een grafiek:</label>
-          <select id="chart-select" onchange="showChart(this.value)" class="rounded px-3 py-2 w-full md:w-1/3">
-            <option value="">-- Selecteer een grafiek --</option>
-            {% for chart_name in charts.keys() %}
-              <option value="{{ chart_name }}">{{ chart_name.replace('_', ' ').title() }}</option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {% for chart_name, chart_data in charts.items() %}
-            <div id="{{ chart_name }}-container" class="chart-container card p-4 rounded-xl shadow-sm" style="display: none;">
-              <canvas id="{{ chart_name }}-chart"></canvas>
-            </div>
+    {% if charts %}
+      <div class="mb-6">
+        <label for="chart-select" class="block text-sm font-medium mb-2">Kies een grafiek:</label>
+        <select id="chart-select" onchange="showChart(this.value)" class="select-custom w-full md:w-1/3">
+          <option value="">-- Selecteer een grafiek --</option>
+          {% for chart_name in charts.keys() %}
+            <option value="{{ chart_name }}">{{ chart_name.replace('_', ' ').title() }}</option>
           {% endfor %}
-        </div>
-      {% else %}
-        <div class="p-4 rounded-lg shadow-md" style="background-color: var(--border-color); color: var(--text-color);">
-          Geen statistieken beschikbaar. Voeg boeken toe om grafieken te zien.
-        </div>
-      {% endif %}
-    </div>
+        </select>
 
-    <div class="card p-4 mb-6 rounded-xl shadow-md">
-    <h3 class="font-bold mb-2">📍 Boeken over Europa</h3>
-    <div id="map" style="height: 500px; border-radius: 0.75rem;"></div>
-    </div>
+      </div>
 
-    <p class="text-center mt-6 italic" style="color: var(--muted);">Versie 1.4.7</p>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {% for chart_name, chart_data in charts.items() %}
+          <div id="{{ chart_name }}-container" class="chart-container card p-4 rounded-xl shadow-sm" style="display: none;">
+            <canvas id="{{ chart_name }}-chart"></canvas>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="p-4 rounded-lg shadow-md" style="background-color: var(--border-color); color: var(--text-color);">
+        Geen statistieken beschikbaar. Voeg boeken toe om grafieken te zien.
+      </div>
+    {% endif %}
   </div>
 
-<script>
-  function varGet(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
-  const chartInstances = {};
+  <div class="card p-4 mb-6 rounded-xl shadow-md">
+    <h3 class="font-bold mb-2">📍 Boeken over Europa</h3>
+    <div id="map" style="height: 500px; border-radius: 0.75rem;"></div>
+  </div>
+{% endblock %}
 
-  // Log data voor debugging
+{% block scripts %}
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+  // Debug logs
   console.log('Charts:', {{ charts | tojson | safe }});
   console.log('Fun facts:', {{ fun_facts | tojson | safe }});
   console.log('Location coords:', {{ location_coords | tojson | safe }});
 
+  // Charts
+  const chartInstances = {};
   {% for chart_name, chart_data in charts.items() %}
-    console.log('Chart {{ chart_name }} data:', {{ chart_data | tojson | safe }});
     if ({{ chart_data.labels | tojson | safe }}.length > 0) {
       chartInstances['{{ chart_name }}'] = new Chart(document.getElementById('{{ chart_name }}-chart').getContext('2d'), {
-        type: '{{ 'pie' if chart_name in ['genre', 'gelezen', 'taal', 'land'] else 'bar' }}',
+        type: '{{ 'pie' if chart_name in ['genre','gelezen','taal','land'] else 'bar' }}',
         data: {
           labels: {{ chart_data.labels | tojson | safe }},
           datasets: [{
-            label: '{{ chart_name.replace('_', ' ').title() }}',
+            label: '{{ chart_name.replace('_',' ').title() }}',
             data: {{ chart_data.data | tojson | safe }},
             backgroundColor: [
-              '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
-              '#FF9F40', '#FF5733', '#C70039', '#900C3F', '#581845'
+              '#FF6384','#36A2EB','#FFCE56','#4BC0C0','#9966FF',
+              '#FF9F40','#FF5733','#C70039','#900C3F','#581845'
             ],
             borderColor: '{{ settings.color }}',
             borderWidth: 1
@@ -156,26 +76,23 @@
         options: {
           responsive: true,
           plugins: {
-            legend: { labels: { color: varGet('--text-color') } },
-            title: { display: true, text: '{{ chart_name.replace('_', ' ').title() }} Verdeling', color: varGet('--text-color') }
+            legend: { labels: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-color') } },
+            title: { display: true, text: '{{ chart_name.replace("_"," ").title() }} Verdeling', color: getComputedStyle(document.documentElement).getPropertyValue('--text-color') }
           },
           scales: {
-            x: { ticks: { color: varGet('--text-color') }, grid: { color: varGet('--border-color') } },
-            y: { ticks: { color: varGet('--text-color') }, grid: { color: varGet('--border-color') } }
+            x: { ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-color') }, grid: { color: getComputedStyle(document.documentElement).getPropertyValue('--border-color') } },
+            y: { ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-color') }, grid: { color: getComputedStyle(document.documentElement).getPropertyValue('--border-color') } }
           }
         }
       });
     } else {
-      console.warn('Geen data voor chart {{ chart_name }}');
-      document.getElementById('{{ chart_name }}-container').innerHTML = '<p class="text-center text-red-500">Geen data beschikbaar voor {{ chart_name.replace('_', ' ').title() }}.</p>';
+      document.getElementById('{{ chart_name }}-container').innerHTML = '<p class="text-center text-red-500">Geen data beschikbaar voor {{ chart_name.replace("_"," ").title() }}.</p>';
     }
   {% endfor %}
 
   function showChart(chartName) {
-    console.log('Showing chart:', chartName);  // Debug
-    const containers = document.querySelectorAll('.chart-container');
-    containers.forEach(container => {
-      container.style.display = container.id === chartName + '-container' ? 'block' : 'none';
+    document.querySelectorAll('.chart-container').forEach(c => {
+      c.style.display = c.id === chartName + '-container' ? 'block' : 'none';
     });
   }
 
@@ -184,45 +101,32 @@
   if (select && select.options.length > 1) {
     select.value = select.options[1].value;
     showChart(select.value);
-  } else {
-    console.warn('Geen grafieken beschikbaar in dropdown');
   }
 
-  {% if fun_facts %}
-    const funFacts = {{ fun_facts | tojson | safe }};
-    console.log('Fun facts loaded:', funFacts);  // Debug
-    let currentFact = 0;
-    const factElement = document.getElementById("fun-fact-text");
-    if (funFacts.length > 0) {
-      function showNextFact() {
-        factElement.textContent = funFacts[currentFact];
-        currentFact = (currentFact + 1) % funFacts.length;
-      }
-      showNextFact();
-      setInterval(showNextFact, 7000);
-    } else {
-      factElement.textContent = 'Geen fun facts beschikbaar.';
-      console.warn('Geen fun facts om te tonen');
+  // Fun facts
+  const funFacts = {{ fun_facts | tojson | safe }};
+  let currentFact = 0;
+  const factElement = document.getElementById("fun-fact-text");
+  if (funFacts.length > 0) {
+    function showNextFact() {
+      factElement.textContent = funFacts[currentFact];
+      currentFact = (currentFact + 1) % funFacts.length;
     }
-  {% else %}
-    document.getElementById("fun-fact-text").textContent = 'Geen fun facts beschikbaar.';
-    console.warn('Geen fun facts ontvangen van backend');
-  {% endif %}
+    showNextFact();
+    setInterval(showNextFact, 7000);
+  } else {
+    factElement.textContent = 'Geen fun facts beschikbaar.';
+  }
 
+  // Map
   const locationData = {{ charts.get('land', {'labels': [], 'data': []}) | tojson | safe }};
   const locationCoords = {{ location_coords | tojson | safe }} || {};
-  console.log('Location data:', locationData);  // Debug
-  console.log('Location coords:', locationCoords);  // Debug
 
-  const map = L.map('map').setView([50.85, 4.35], 4);  
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 18,
-      attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
+  const map = L.map('map').setView([50.85, 4.35], 4);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
 
   if (locationData.labels.length === 0 || Object.keys(locationCoords).length === 0) {
     document.getElementById('map').innerHTML = '<p class="text-center text-red-500">Geen aankooplocaties beschikbaar. Voeg landinformatie toe aan boeken.</p>';
-    console.warn('Geen data voor kaart');
   } else {
     const bounds = [];
     for (let i = 0; i < locationData.labels.length; i++) {
@@ -230,24 +134,12 @@
       const count = locationData.data[i];
       const coords = locationCoords[loc];
       if (coords) {
-        L.circleMarker([coords[0], coords[1]], {
-          radius: 5 + count * 2,
-          color: '#ff0000',
-          fillOpacity: 0.6
-        }).bindPopup(`${loc}: ${count} boeken`).addTo(map);
+        L.circleMarker([coords[0], coords[1]], { radius: 5 + count*2, color: '#ff0000', fillOpacity: 0.6 })
+          .bindPopup(`${loc}: ${count} boeken`).addTo(map);
         bounds.push([coords[0], coords[1]]);
-      } else {
-        console.warn(`Geen coördinaten voor ${loc}`);
       }
     }
-    if (bounds.length > 0) {
-      map.fitBounds(bounds, { padding: [50, 50] });
-    }
+    if (bounds.length > 0) map.fitBounds(bounds, { padding: [50,50] });
   }
 </script>
-</body>
-</html>
-<<<<<<< HEAD
-```µ
-=======
->>>>>>> 7b27123b4ad630ecb94483bbc6c34d181b2a5b2a
+{% endblock %}
