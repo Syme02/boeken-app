@@ -19,20 +19,24 @@
       <td class="p-2">{{ user[1] }}</td>
       <td class="p-2">{{ user[2] }}</td>
       <td class="p-2 space-x-2">
-        {% if session.user_id != user[0] %} {# Admin mag zichzelf niet verwijderen #}
-        <form method="POST" class="inline">
-          <input type="hidden" name="user_id" value="{{ user[0] }}">
-          {% if user[2] == 'user' %}
-            <button type="submit" name="action" value="make_admin" class="px-2 py-1 bg-green-500 text-white rounded">Maak admin</button>
-          {% else %}
-            <button type="submit" name="action" value="remove_admin" class="px-2 py-1 bg-yellow-500 text-white rounded">Degradeer</button>
-          {% endif %}
-          <button type="submit" name="action" value="delete" class="px-2 py-1 bg-red-500 text-white rounded">Verwijder</button>
-        </form>
+  {% if session.user_id != user[0] %} {# Admin mag zichzelf niet verwijderen #}
+    <form method="POST" class="inline">
+      <input type="hidden" name="user_id" value="{{ user[0] }}">
+      <button type="submit" name="action" value="toggle_role"
+              class="px-2 py-1 rounded text-white {% if user[2] == 'admin' %}bg-yellow-500{% else %}bg-green-500{% endif %}">
+        {% if user[2] == 'admin' %}
+          Degradeer
         {% else %}
-          <span class="text-gray-400">Jezelf</span>
+          Promoveer
         {% endif %}
-      </td>
+      </button>
+      <button type="submit" name="action" value="delete" class="px-2 py-1 bg-red-500 text-white rounded">Verwijder</button>
+    </form>
+  {% else %}
+    <span class="text-gray-400">Jezelf</span>
+  {% endif %}
+</td>
+
     </tr>
     {% endfor %}
   </tbody>

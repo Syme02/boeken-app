@@ -91,12 +91,17 @@ def manage_users():
         if action == 'delete':
             c.execute('DELETE FROM users WHERE id = ?', (user_id,))
             flash('Gebruiker verwijderd.', 'success')
-        elif action == 'make_admin':
-            c.execute('UPDATE users SET role = "admin" WHERE id = ?', (user_id,))
-            flash('Gebruiker is nu admin.', 'success')
-        elif action == 'remove_admin':
-            c.execute('UPDATE users SET role = "super" WHERE id = ?', (user_id,))
-            flash('Adminstatus verwijderd; gebruiker is nu supergebruiker.', 'success')
+        elif action == 'toggle_role':
+            c.execute('SELECT role FROM users WHERE id = ?', (user_id,))
+            current_role = c.fetchone()[0]
+            # Toggle role
+            if current_role == 'admin':
+                new_role = 'super'
+                flash('Adminstatus verwijderd; gebruiker is nu supergebruiker.', 'success')
+            else:  # super -> admin
+                new_role = 'admin'
+                flash('Gebruiker is nu admin.', 'success')
+            c.execute('UPDATE users SET role = ? WHERE id = ?', (new_role, user_id))
 
         conn.commit()
 
@@ -104,6 +109,7 @@ def manage_users():
     users = c.fetchall()
     conn.close()
     return render_template('manage_users.html', users=users, settings=get_user_settings(session.get('user_id')))
+
 
 @app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
 @super_admin_required
