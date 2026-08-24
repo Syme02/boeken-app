@@ -57,6 +57,13 @@
       </nav>
     </div>
   </header>
+      <!-- Zwevende knop voor snel boek toevoegen -->
+<a href="{{ url_for('dashboard') }}" 
+   class="fixed bottom-6 right-6 w-14 h-14 rounded-full flex items-center justify-center text-3xl shadow-lg hover:shadow-xl transition-all hover:scale-110"
+   style="background-color: var(--primary-color); color: white;"
+   title="Snel boek toevoegen">
+  ➕
+</a>
 
   <div class="container mx-auto max-w-7xl p-4 flex-1 flex flex-col">
     {% with messages = get_flashed_messages(with_categories=true) %}

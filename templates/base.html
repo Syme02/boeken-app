@@ -34,7 +34,7 @@
     @media (max-width: 640px) { .logo { width: 32px; height: 32px; } }
     .select-custom {
       border: 1px solid var(--border-color);
-      background-color: var(--card-bg); /* gebruikt je card kleur zodat het mooi past */
+      background-color: var(--card-bg);
       color: var(--text-color);
       padding: 0.5rem 0.75rem;
       border-radius: 0.5rem;
@@ -42,7 +42,7 @@
     }
 
     .select-custom:focus {
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3); /* zachte blauwe focus-ring */
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
       border-color: var(--primary-color);
     }
 
@@ -93,10 +93,22 @@
   </div>
 
   <footer class="text-center mt-6">
-    <p class="italic" style="color: var(--muted);">Versie 1.4.7 | Logo by <a href="https://www.flaticon.com" class="link-primary">Flaticon</a></p>
+    <p class="italic" style="color: var(--muted);">Versie 1.5.3 </a></p>
   </footer>
 
   <!-- Page-specific scripts -->
   {% block scripts %}{% endblock %}
+
+  <!-- Zwevende knop voor snel boek toevoegen (alleen voor ingelogde gebruikers) -->
+  <!-- Zwevende knop voor snel boek toevoegen (alleen voor ingelogde gebruikers) -->
+  {% if session.user_id %}
+    <a href="javascript:void(0)" 
+       onclick="openScannerAndFocus()"
+       class="fixed bottom-6 right-6 w-14 h-14 rounded-full flex items-center justify-center text-3xl shadow-lg hover:shadow-xl transition-all hover:scale-110 z-50"
+       style="background-color: var(--primary-color);"
+       title="Snel boek toevoegen">
+      <span style="color: {{ '#111827' if settings.dark_mode else '#ffffff' }};">✚</span>
+    </a>
+  {% endif %}
 </body>
 </html>

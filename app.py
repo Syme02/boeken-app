@@ -2,6 +2,7 @@ from io import StringIO, BytesIO
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session, current_app, send_file
 from flask_cors import CORS
 from functools import wraps
+from werkzeug.utils import secure_filename
 from models.database import init_db, get_db_connection
 from models.book import load_csv_to_db, search_books, add_book, edit_book as update_book, delete_book
 from models.user import register_user, login_user, is_admin
@@ -166,7 +167,13 @@ def logout():
 def index():
     user_id = session.get('user_id', 0)
     settings = get_user_settings(user_id)
-    return render_template("index.html", settings=settings)   # dit is jouw nieuwe welkomspagina
+    
+    # Als gebruiker ingelogd is, stuur naar Over Mij pagina
+    if user_id:
+        return redirect(url_for('over_mij'))
+    
+    # Anders toon de info pagina
+    return render_template("index.html", settings=settings)
     
 @app.route("/over-mij")
 def over_mij():
@@ -263,6 +270,9 @@ def dashboard():
     filters = {}
     edit_book_data = {}
     books = []
+    # In de dashboard route, voor de render_template call:
+    user_likes = get_user_likes(user_id) if 'get_user_likes' in globals() else []
+    is_admin_val = session.get("role") in ["admin", "super"]
 
     if request.method == 'POST':
         if not is_admin() and request.form.get('action') in ['add', 'edit']:
@@ -350,14 +360,17 @@ def dashboard():
     total_price = df['prijs'].sum() if not df.empty else 0
     total_pages = df['paginas'].sum() if not df.empty else 0
     
-    return render_template('dashboard.html', 
-                       books=books, 
-                       total_price=total_price, 
-                       total_pages=total_pages,
-                       filters=filters, 
-                       settings=settings, 
-                       edit_book_data=edit_book_data)
+# Converteer Row objecten naar lijsten voor JSON serialisatie
+    books_list = [list(book) for book in books]
 
+    return render_template('dashboard.html', 
+                           books=books_list, 
+                           total_price=total_price, 
+                           total_pages=total_pages,
+                           filters=filters, 
+                           settings=settings, 
+                           edit_book_data=edit_book_data)
+                           
 @app.route('/search', methods=['POST'])
 def search():
     user_id = session.get('user_id', 0)
@@ -374,35 +387,151 @@ def search():
     } for book in books])
 
 @app.route('/fetch_cover', methods=['POST'])
+@login_required
 def fetch_cover():
     import requests
+
     title = request.form.get('titel', '').strip()
     isbn = request.form.get('isbn', '').strip()
+    author = request.form.get('auteur', '').strip()
+
     if not title and not isbn:
-        return jsonify({'cover_url': '', 'message': 'Vul een titel of ISBN in!', 'category': 'error'})
+        return jsonify({
+            'cover_url': '',
+            'message': 'Geen titel of ISBN opgegeven.',
+            'category': 'error'
+        }), 400
+
+    # Eerst Google Books proberen
+    if isbn:
+        clean_isbn = isbn.replace('-', '').replace(' ', '')
+        
+        # Google Books API
+        try:
+            google_result = fetch_from_google_books(clean_isbn, title, author)
+            if google_result and google_result.get('cover_url'):
+                return google_result
+        except Exception as e:
+            logger.warning(f'Google Books faalde: {e}')
+        
+        # Fallback: Open Library API
+        try:
+            openlibrary_result = fetch_from_openlibrary(clean_isbn, title, author)
+            if openlibrary_result:
+                return openlibrary_result
+        except Exception as e:
+            logger.warning(f'Open Library faalde: {e}')
+        
+        # Laatste fallback: Google Books zonder ISBN
+        if title:
+            try:
+                google_result = fetch_from_google_books('', title, author)
+                if google_result:
+                    return google_result
+            except:
+                pass
     
-    query = f"isbn:{isbn.replace('-', '')}" if isbn else f"intitle:{title.replace(' ', '+')}"
-    try:
-        response = requests.get(f"https://www.googleapis.com/books/v1/volumes?q={query}", timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            if data["totalItems"] > 0:
-                book = data["items"][0]["volumeInfo"]
-                cover_url = book.get("imageLinks", {}).get("thumbnail", "")
-                country = data["items"][0].get("saleInfo", {}).get("country", "")
-                country_map = {'NL': 'Nederland', 'BE': 'België', 'DE': 'Duitsland', 'FR': 'Frankrijk', 'ES': 'Spanje', 'IT': 'Italië'}
-                country_name = country_map.get(country, country or 'Onbekend')
+    return jsonify({
+        'cover_url': '',
+        'land': '',
+        'message': 'Geen boek gevonden in externe databases.',
+        'category': 'error'
+    })
+
+
+def fetch_from_google_books(isbn, title, author):
+    import requests
+    
+    if isbn:
+        query = f'isbn:{isbn}'
+    else:
+        query_parts = [f'intitle:{title}']
+        if author:
+            query_parts.append(f'inauthor:{author}')
+        query = ' '.join(query_parts)
+    
+    params = {
+        'q': query,
+        'maxResults': 1
+    }
+    
+    response = requests.get(
+        'https://www.googleapis.com/books/v1/volumes',
+        params=params,
+        timeout=5
+    )
+    
+    if response.status_code == 200:
+        data = response.json()
+        items = data.get('items', [])
+        
+        if items:
+            volume_info = items[0].get('volumeInfo', {})
+            image_links = volume_info.get('imageLinks', {})
+            
+            cover_url = (
+                image_links.get('thumbnail')
+                or image_links.get('smallThumbnail')
+                or ''
+            )
+            
+            if cover_url and cover_url.startswith('http://'):
+                cover_url = 'https://' + cover_url[7:]
+            
+            return jsonify({
+                'cover_url': cover_url,
+                'land': '',
+                'message': 'Boekkaft opgehaald via Google Books!',
+                'category': 'success' if cover_url else 'info'
+            })
+    
+    return None
+
+
+def fetch_from_openlibrary(isbn, title, author):
+    import requests
+    
+    # Open Library cover API
+    if isbn:
+        cover_url = f'https://covers.openlibrary.org/b/isbn/{isbn}-M.jpg'
+        
+        # Check of URL bestaat
+        try:
+            response = requests.head(cover_url, timeout=3)
+            if response.status_code == 200:
                 return jsonify({
                     'cover_url': cover_url,
-                    'land': country_name,
-                    'message': 'Boekkaft opgehaald!' if cover_url else 'Geen boekkaft gevonden.',
-                    'category': 'success' if cover_url else 'info'
+                    'land': '',
+                    'message': 'Boekkaft opgehaald via Open Library!',
+                    'category': 'success'
                 })
-            return jsonify({'cover_url': '', 'land': '', 'message': 'Geen boek gevonden in Google Books API.', 'category': 'info'})
-        return jsonify({'cover_url': '', 'land': '', 'message': f'Fout bij extern zoeken: HTTP {response.status_code}', 'category': 'error'})
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error fetching cover: {str(e)}")
-        return jsonify({'cover_url': '', 'land': '', 'message': f'Fout bij extern zoeken: {str(e)}', 'category': 'error'})
+        except:
+            pass
+    
+    # Open Library search API
+    if title:
+        try:
+            search_url = f'https://openlibrary.org/search.json?title={title.replace(" ", "+")}'
+            if author:
+                search_url += f'&author={author.replace(" ", "+")}'
+            
+            response = requests.get(search_url, timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('numFound', 0) > 0:
+                    cover_id = data['docs'][0].get('cover_i')
+                    if cover_id:
+                        cover_url = f'https://covers.openlibrary.org/b/id/{cover_id}-M.jpg'
+                        return jsonify({
+                            'cover_url': cover_url,
+                            'land': '',
+                            'message': 'Boekkaft opgehaald via Open Library!',
+                            'category': 'success'
+                        })
+        except Exception as e:
+            logger.warning(f'Open Library search faalde: {e}')
+    
+    return None
 
 @app.route('/edit/<int:book_id>', methods=['GET'], endpoint='edit_book')
 @admin_required
